@@ -1,57 +1,82 @@
-# React + TypeScript + Vite
+# Dream Room 🌌
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **Assemble your personal AI think tank. Watch legends discuss the future.**
 
-Currently, two official plugins are available:
+**Dream Room** is a single-page web application (MVP) that allows users to create a virtual roundtable of 2-3 "AI Idols" and watch them discuss a specific topic.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Experience what it's like to have **Elon Musk**, **Albert Einstein**, **Lu Xun**, and **Kobe Bryant** in the same room, debating the topics you care about.
 
-## Expanding the ESLint configuration
+![Dream Room Preview](./public/preview.png)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 📖 Project Background
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+In an era of fragmented information, we often wonder: *What would great minds think about today's problems?*
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+**Dream Room** was born from this curiosity. It provides a lightweight, immersive environment where users can:
+-   Select iconic figures with distinct personalities.
+-   Input controversial or deep topics (e.g., "Will AI destroy humanity?").
+-   Observe a simulated, personality-driven group chat.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+This MVP demonstrates the core value of **multi-character personalized dialogue** without needing a complex backend, using frontend simulation to deliver a high-fidelity prototype experience.
 
-export default tseslint.config({
-  extends: [
-    // other configs...
-    // Enable lint rules for React
-    reactX.configs['recommended-typescript'],
-    // Enable lint rules for React DOM
-    reactDom.configs.recommended,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+## ✨ Core Features
+
+-   **🧠 Assemble Your Think Tank**: Choose 2-3 characters from a roster of legends (Musk, Einstein, Lu Xun, Kobe).
+-   **💬 Simulated Roundtable**: Watch characters discuss your chosen topic with personality-specific phrasing and viewpoints.
+-   **🎭 Authentic Personalities**:
+    -   **Musk**: Aggressive, first-principles thinking, obsessed with Mars and speed.
+    -   **Einstein**: Philosophical, imaginative, constantly referencing physics and God.
+    -   **Lu Xun**: Sharp, critical, deeply concerned with society and human nature.
+    -   **Kobe**: Mamba Mentality, relentless, focused on hard work and greatness.
+-   **🌍 Multi-language Support**: Seamlessly switch between **English** and **Chinese** (中文).
+-   **⚡️ Instant Interaction**: Users can interrupt and join the chat at any time.
+-   **📱 Modern UI**: Fully responsive design built with Tailwind CSS, featuring a clean, immersive dark/light aesthetic.
+
+## 🛠 Tech Stack
+
+-   **Framework**: [React 18](https://react.dev/)
+-   **Language**: [TypeScript](https://www.typescriptlang.org/)
+-   **Build Tool**: [Vite](https://vitejs.dev/)
+-   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+-   **Routing**: [React Router v6](https://reactrouter.com/)
+-   **Internationalization**: [i18next](https://www.i18next.com/)
+-   **Icons**: [Lucide React](https://lucide.dev/)
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+-   Node.js (v16 or higher)
+-   npm or yarn
+
+### Installation
+
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/yangchao228/dream-room.git
+    cd dream-room
+    ```
+
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
+
+3.  **Run the development server**
+    ```bash
+    npm run dev
+    ```
+
+4.  **Open in browser**
+    Visit `http://localhost:5173` to start your Dream Room experience!
+
+## 🔮 Future Roadmap
+
+-   [ ] **Real LLM Integration**: Connect to OpenAI/Anthropic APIs for real-time, dynamic intelligence.
+-   [ ] **Custom Characters**: Allow users to upload avatars and define personalities.
+-   [ ] **Voice Mode**: Text-to-Speech (TTS) for an audible roundtable experience.
+-   [ ] **Shareable Rooms**: Generate links to share interesting debates with friends.
+
+## 📄 License
+
+This project is licensed under the MIT License.
