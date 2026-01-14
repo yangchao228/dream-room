@@ -1,0 +1,40 @@
+{
+  "app": {
+    "title": "Dream Room",
+    "theme": {
+      "light": "浅色模式",
+      "dark": "深色模式"
+    }
+  },
+  "home": {
+    "myTeams": "我的智囊团",
+    "subtitle": "创建属于你的 AI 智囊团。召集埃隆·马斯克、爱因斯坦等人，讨论你想要的任何话题。",
+    "createFirst": "创建第一个团队",
+    "create": "创建新团队",
+    "emptyState": "暂无智囊团。创建一个来看看 AI 偶像们的群聊吧！",
+    "members": "成员",
+    "topic": "话题"
+  },
+  "create": {
+    "title": "组建你的团队",
+    "step1": "1. 选择角色 (2-3人)",
+    "step2": "2. 定义话题",
+    "topicPlaceholder": "例如：AI 会毁灭人类吗？",
+    "start": "开始圆桌会议",
+    "selected": "已选",
+    "error": {
+      "selectChars": "请选择 2 到 3 个角色。",
+      "enterTopic": "请输入讨论话题。"
+    }
+  },
+  "chat": {
+    "inputPlaceholder": "加入讨论...",
+    "send": "发送",
+    "systemIntro": "今天我们讨论的话题是：{topic}",
+    "back": "返回首页"
+  },
+  "teamCard": {
+    "enterChat": "进入聊天",
+    "members": "成员"
+  }
+}

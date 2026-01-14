@@ -1,0 +1,40 @@
+{
+  "app": {
+    "title": "Dream Room",
+    "theme": {
+      "light": "Light Mode",
+      "dark": "Dark Mode"
+    }
+  },
+  "home": {
+    "myTeams": "My Think Tanks",
+    "subtitle": "Create your own AI think tank. Gather Elon Musk, Einstein, and others to discuss any topic you want.",
+    "createFirst": "Create First Team",
+    "create": "Create New Team",
+    "emptyState": "No think tanks yet. Create one to see AI idols chat!",
+    "members": "Members",
+    "topic": "Topic"
+  },
+  "create": {
+    "title": "Assemble Your Team",
+    "step1": "1. Select Characters (2-3)",
+    "step2": "2. Define Topic",
+    "topicPlaceholder": "e.g., Will AI replace humans?",
+    "start": "Start Roundtable",
+    "selected": "Selected",
+    "error": {
+      "selectChars": "Please select 2 or 3 characters.",
+      "enterTopic": "Please enter a discussion topic."
+    }
+  },
+  "chat": {
+    "inputPlaceholder": "Join the discussion...",
+    "send": "Send",
+    "systemIntro": "Today we are discussing: {topic}",
+    "back": "Back to Home"
+  },
+  "teamCard": {
+    "enterChat": "Enter Chat",
+    "members": "Members"
+  }
+}
