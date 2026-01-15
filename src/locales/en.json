@@ -25,13 +25,50 @@
     "error": {
       "selectChars": "Please select 2 or 3 characters.",
       "enterTopic": "Please enter a discussion topic."
-    }
+    },
+    "myCharacters": "My Characters",
+    "createNew": "Create New",
+    "standardCharacters": "Standard Characters",
+    "addCustom": "Add Custom AI"
+  },
+  "character": {
+    "title": "Create AI Character",
+    "basicInfo": "Basic Info",
+    "name": "Name",
+    "namePlaceholder": "e.g. Wise Old Owl",
+    "tag": "Tag / Role",
+    "tagPlaceholder": "e.g. Forest Guardian",
+    "description": "Short Description",
+    "descPlaceholder": "A brief summary...",
+    "modelConfig": "Model Configuration",
+    "provider": "Model Provider",
+    "localOllama": "Local Ollama",
+    "openai": "OpenAI",
+    "modelSelection": "Model Selection",
+    "manualInput": "Could not auto-detect models. Please enter model name manually.",
+    "apiEndpoint": "API Endpoint",
+    "model": "Model",
+    "apiKey": "API Key",
+    "apiKeyHint": "Your key is stored locally in your browser and never sent to our servers.",
+    "testConnection": "Test Connection",
+    "connected": "Connected",
+    "connectionFailed": "Connection Failed",
+    "personality": "Personality & Prompt",
+    "systemPrompt": "System Prompt",
+    "systemPromptPlaceholder": "You are a helpful assistant who speaks like a pirate...",
+    "systemPromptHint": "Define how the character should behave, speak, and what they know.",
+    "temperature": "Temperature (Randomness)",
+    "precise": "Precise",
+    "creative": "Creative",
+    "createAction": "Create Character",
+    "creating": "Creating..."
   },
   "chat": {
     "inputPlaceholder": "Join the discussion...",
     "send": "Send",
     "systemIntro": "Today we are discussing: {topic}",
-    "back": "Back to Home"
+    "back": "Back to Home",
+    "thinking": "Thinking..."
   },
   "teamCard": {
     "enterChat": "Enter Chat",

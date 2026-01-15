@@ -5,7 +5,7 @@ import { getCharacters } from '../data/characters';
 import { Character, Team } from '../types';
 import { CharacterCard } from '../components/CharacterCard';
 import { storage } from '../utils/storage';
-import { ArrowRight, Users, MessageSquare } from 'lucide-react';
+import { ArrowRight, Users, MessageSquare, Plus } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 export const CreateTeam: React.FC = () => {
@@ -15,7 +15,11 @@ export const CreateTeam: React.FC = () => {
   const [topic, setTopic] = useState('');
   const [error, setError] = useState('');
 
-  const currentCharacters = useMemo(() => getCharacters(i18n.language), [i18n.language]);
+  const builtInCharacters = useMemo(() => getCharacters(i18n.language), [i18n.language]);
+  const customCharacters = storage.getCustomCharacters();
+
+  // Combine both lists for selection logic, but display them separately
+  const allCharacters = [...builtInCharacters, ...customCharacters];
 
   const handleSelectCharacter = (character: Character) => {
     setError('');
@@ -40,7 +44,7 @@ export const CreateTeam: React.FC = () => {
       return;
     }
 
-    const selectedCharacters = currentCharacters.filter(c => selectedIds.includes(c.id));
+    const selectedCharacters = allCharacters.filter(c => selectedIds.includes(c.id));
 
     const newTeam: Team = {
       id: crypto.randomUUID(),
@@ -55,7 +59,7 @@ export const CreateTeam: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto pb-20">
       <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-8 text-center">
         {t('create.title')}
       </h1>
@@ -76,15 +80,58 @@ export const CreateTeam: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {currentCharacters.map(char => (
-              <CharacterCard
-                key={char.id}
-                character={char}
-                isSelected={selectedIds.includes(char.id)}
-                onSelect={handleSelectCharacter}
-              />
-            ))}
+          {/* Custom Characters Section */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+               <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                {t('create.myCharacters')}
+              </h3>
+              <button 
+                onClick={() => navigate('/create-character')}
+                className="text-sm font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                {t('create.createNew')}
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {customCharacters.map(char => (
+                <CharacterCard
+                  key={char.id}
+                  character={char}
+                  isSelected={selectedIds.includes(char.id)}
+                  onSelect={handleSelectCharacter}
+                />
+              ))}
+              
+              {customCharacters.length === 0 && (
+                <button 
+                  onClick={() => navigate('/create-character')}
+                  className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all text-slate-400 hover:text-emerald-600 h-full min-h-[140px]"
+                >
+                  <Plus className="w-8 h-8 mb-2" />
+                  <span className="text-sm font-medium">{t('create.addCustom')}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Built-in Characters Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+              {t('create.standardCharacters')}
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {builtInCharacters.map(char => (
+                <CharacterCard
+                  key={char.id}
+                  character={char}
+                  isSelected={selectedIds.includes(char.id)}
+                  onSelect={handleSelectCharacter}
+                />
+              ))}
+            </div>
           </div>
         </section>
 

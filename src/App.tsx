@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { CreateTeam } from './pages/CreateTeam';
+import { CreateCharacter } from './pages/CreateCharacter';
 import { ChatRoom } from './pages/ChatRoom';
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/create" element={<CreateTeam />} />
+          <Route path="/create-character" element={<CreateCharacter />} />
           <Route path="/chat/:teamId" element={<ChatRoom />} />
         </Routes>
       </Layout>

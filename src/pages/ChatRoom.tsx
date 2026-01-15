@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import { Team, Message, Character } from '../types';
 import { storage } from '../utils/storage';
 import { getCharacterById } from '../data/characters';
 import { ChatBubble } from '../components/ChatBubble';
 import { cn } from '../utils/cn';
-import i18nInstance from '../i18n'; // Direct import for timeout callback access
+import i18nInstance from '../i18n';
+import { llmService, ChatMessage } from '../services/llm';
 
 export const ChatRoom: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
@@ -16,6 +17,10 @@ export const ChatRoom: React.FC = () => {
   const [team, setTeam] = useState<Team | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  
+  // Thinking state for AI characters
+  const [isThinking, setIsThinking] = useState(false);
+  const [thinkingCharacter, setThinkingCharacter] = useState<Character | null>(null);
   
   // Refs for simulation loop
   const messagesRef = useRef<Message[]>([]);
@@ -72,7 +77,7 @@ export const ChatRoom: React.FC = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isThinking]);
 
   const addMessage = (msg: Message, currentTeamId: string) => {
     setMessages(prev => {
@@ -91,6 +96,43 @@ export const ChatRoom: React.FC = () => {
     return phraseTemplate.replace(/{topic}/g, topic);
   };
 
+  const generateAIResponse = async (character: Character, topic: string, history: Message[]) => {
+    if (!character.modelConfig) return '...';
+
+    // Prepare history for LLM
+    // Limit history to last 10 messages to save tokens/context
+    const recentHistory = history.slice(-10);
+    const chatMessages: ChatMessage[] = recentHistory.map(msg => {
+      if (msg.sender === 'system') {
+        return { role: 'system', content: msg.content };
+      }
+      if (msg.sender === 'user') {
+        return { role: 'user', content: msg.content };
+      }
+      // If sender is a character
+      return { 
+        role: msg.sender.id === character.id ? 'assistant' : 'user',
+        content: `${msg.sender.name}: ${msg.content}` 
+      };
+    });
+
+    // Add current topic context if not present
+    if (chatMessages.length === 0 || chatMessages[0].role !== 'system') {
+      chatMessages.unshift({
+        role: 'system',
+        content: `Current Topic: ${topic}`
+      });
+    }
+
+    try {
+      const service = llmService.getService(character.modelConfig.provider);
+      return await service.chat(character.modelConfig, chatMessages);
+    } catch (error) {
+      console.error('LLM generation failed:', error);
+      return `(Error: Failed to connect to ${character.modelConfig.provider} model)`;
+    }
+  };
+
   const startSimulation = () => {
     stopSimulation();
     scheduleNextTurn();
@@ -104,30 +146,58 @@ export const ChatRoom: React.FC = () => {
   };
 
   const scheduleNextTurn = () => {
-    timeoutRef.current = setTimeout(() => {
+    // If already thinking, don't schedule
+    if (isThinking) return;
+
+    timeoutRef.current = setTimeout(async () => {
       if (!teamRef.current) return;
       
       const currentTeam = teamRef.current;
       const characters = currentTeam.characters;
       const speaker = characters[speakerIndexRef.current % characters.length];
       
-      // Generate message
-      const text = getRandomPhrase(speaker.id, currentTeam.topic);
-      
-      const newMsg: Message = {
-        id: crypto.randomUUID(),
-        sender: speaker,
-        content: text,
-        timestamp: Date.now()
-      };
+      // Determine if speaker is AI or Static
+      if (speaker.provider === 'ai' && speaker.modelConfig) {
+        setIsThinking(true);
+        setThinkingCharacter(speaker);
+        
+        // Pause simulation while thinking
+        stopSimulation();
+        
+        const text = await generateAIResponse(speaker, currentTeam.topic, messagesRef.current);
+        
+        setIsThinking(false);
+        setThinkingCharacter(null);
+        
+        const newMsg: Message = {
+          id: crypto.randomUUID(),
+          sender: speaker,
+          content: text,
+          timestamp: Date.now()
+        };
 
-      addMessage(newMsg, currentTeam.id);
-      
-      // Advance turn
-      speakerIndexRef.current++;
-      
-      // Schedule next
-      scheduleNextTurn();
+        addMessage(newMsg, currentTeam.id);
+        
+        // Advance and resume
+        speakerIndexRef.current++;
+        scheduleNextTurn();
+      } else {
+        // Static character logic
+        const text = getRandomPhrase(speaker.id, currentTeam.topic);
+        
+        const newMsg: Message = {
+          id: crypto.randomUUID(),
+          sender: speaker,
+          content: text,
+          timestamp: Date.now()
+        };
+
+        addMessage(newMsg, currentTeam.id);
+        
+        // Advance turn
+        speakerIndexRef.current++;
+        scheduleNextTurn();
+      }
     }, 1500); // 1.5s interval
   };
 
@@ -149,7 +219,11 @@ export const ChatRoom: React.FC = () => {
     setInputText('');
 
     // Restart simulation after a short delay
-    scheduleNextTurn();
+    // If an AI was thinking, this might interrupt it, but that's acceptable for now
+    // Ideally we might want to let the AI finish or cancel its request
+    setTimeout(() => {
+        scheduleNextTurn();
+    }, 1000);
   };
 
   if (!team) return null;
@@ -184,6 +258,31 @@ export const ChatRoom: React.FC = () => {
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} />
         ))}
+        
+        {/* Thinking Indicator */}
+        {isThinking && thinkingCharacter && (
+          <div className="flex justify-start mb-4 animate-in fade-in slide-in-from-bottom-2">
+             <div className="flex items-end gap-2 max-w-[80%]">
+               <div className={cn(
+                  "w-8 h-8 rounded-full border-2 flex-shrink-0 bg-slate-200 dark:bg-slate-800",
+                  thinkingCharacter.color || "border-slate-200"
+                )}>
+                  <img 
+                    src={thinkingCharacter.avatar} 
+                    alt={thinkingCharacter.name}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+               </div>
+               <div className="p-3 rounded-2xl rounded-bl-none bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{t('chat.thinking')}</span>
+                  </div>
+               </div>
+             </div>
+          </div>
+        )}
+        
         {/* Invisible element to pad bottom for scrolling */}
         <div className="h-4"></div>
       </div>

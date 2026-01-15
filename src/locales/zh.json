@@ -7,11 +7,11 @@
     }
   },
   "home": {
-    "myTeams": "我的智囊团",
-    "subtitle": "创建属于你的 AI 智囊团。召集埃隆·马斯克、爱因斯坦等人，讨论你想要的任何话题。",
+    "myTeams": "偶像圆桌",
+    "subtitle": "召集埃隆·马斯克、爱因斯坦等人，讨论你想要的任何话题。",
     "createFirst": "创建第一个团队",
     "create": "创建新团队",
-    "emptyState": "暂无智囊团。创建一个来看看 AI 偶像们的群聊吧！",
+    "emptyState": "创建一个AI偶像们的圆桌讨论吧！",
     "members": "成员",
     "topic": "话题"
   },
@@ -25,13 +25,50 @@
     "error": {
       "selectChars": "请选择 2 到 3 个角色。",
       "enterTopic": "请输入讨论话题。"
-    }
+    },
+    "myCharacters": "我的角色",
+    "createNew": "新建角色",
+    "standardCharacters": "标准角色",
+    "addCustom": "添加自定义 AI"
+  },
+  "character": {
+    "title": "创建 AI 角色",
+    "basicInfo": "基本信息",
+    "name": "名称",
+    "namePlaceholder": "例如：智慧老猫头鹰",
+    "tag": "标签 / 角色",
+    "tagPlaceholder": "例如：森林守护者",
+    "description": "简短描述",
+    "descPlaceholder": "一句话简介...",
+    "modelConfig": "模型配置",
+    "provider": "模型提供商",
+    "localOllama": "本地 Ollama",
+    "openai": "OpenAI",
+    "modelSelection": "模型选择",
+    "manualInput": "无法自动检测模型。请手动输入模型名称。",
+    "apiEndpoint": "API 地址",
+    "model": "模型",
+    "apiKey": "API Key",
+    "apiKeyHint": "您的 Key 仅存储在本地浏览器中，绝不会发送到我们的服务器。",
+    "testConnection": "测试连接",
+    "connected": "已连接",
+    "connectionFailed": "连接失败",
+    "personality": "性格与提示词",
+    "systemPrompt": "系统提示词",
+    "systemPromptPlaceholder": "你是一个乐于助人的助手，说话像个海盗...",
+    "systemPromptHint": "定义角色的行为、说话方式以及它所知道的内容。",
+    "temperature": "温度 (随机性)",
+    "precise": "严谨",
+    "creative": "创意",
+    "createAction": "创建角色",
+    "creating": "创建中..."
   },
   "chat": {
     "inputPlaceholder": "加入讨论...",
     "send": "发送",
     "systemIntro": "今天我们讨论的话题是：{topic}",
-    "back": "返回首页"
+    "back": "返回首页",
+    "thinking": "思考中..."
   },
   "teamCard": {
     "enterChat": "进入聊天",

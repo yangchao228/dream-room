@@ -1,4 +1,18 @@
-export type PersonalityType = 'musk' | 'einstein' | 'luxun' | 'kobe';
+export type PersonalityType = 'musk' | 'einstein' | 'luxun' | 'kobe' | 'custom';
+
+export type CharacterProvider = 'static' | 'ai';
+
+export type ModelProvider = 'ollama' | 'openai';
+
+export interface ModelConfig {
+  provider: ModelProvider;
+  model: string;             // e.g. 'llama3', 'gpt-3.5-turbo'
+  apiEndpoint?: string;      // Ollama default 'http://localhost:11434', OpenAI default 'https://api.openai.com/v1'
+  apiKey?: string;           // OpenAI needs this, Ollama doesn't
+  temperature?: number;      // 0-1, controls randomness
+  systemPrompt?: string;     // Core personality instructions
+  contextWindow?: number;    // Optional context window size
+}
 
 export interface Character {
   id: string;
@@ -7,12 +21,23 @@ export interface Character {
   tag: string;
   personality: PersonalityType;
   color: string;
+  
+  // Static character fields
   phrases: string[];
+  
+  // AI character fields
+  provider?: CharacterProvider; // 'static' | 'ai'
+  description?: string;      // Short description
+  modelConfig?: ModelConfig; // Required when provider === 'ai'
+  
+  // Metadata
+  isCustom?: boolean;        // Is this a user-created character
+  createdAt?: number;
 }
 
 export interface Team {
   id: string;
-  name: string; // Auto-generated or same as topic for simplicity? PRD says "Team Name" in UI, but creation flow only asks for Topic. We can derive name from characters or topic. Let's use Topic as primary display, maybe auto-gen name like "Musk & Einstein's Room"
+  name: string;
   topic: string;
   characters: Character[];
   createdAt: number;
