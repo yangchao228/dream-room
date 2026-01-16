@@ -13,7 +13,9 @@
     "create": "Create New Team",
     "emptyState": "No think tanks yet. Create one to see AI idols chat!",
     "members": "Members",
-    "topic": "Topic"
+    "topic": "Topic",
+    "manageCharacters": "My Characters",
+    "deleteTeamConfirm": "Are you sure you want to delete this team?"
   },
   "create": {
     "title": "Assemble Your Team",
@@ -42,8 +44,16 @@
     "descPlaceholder": "A brief summary...",
     "modelConfig": "Model Configuration",
     "provider": "Model Provider",
-    "localOllama": "Local Ollama",
-    "openai": "OpenAI",
+    "advancedSettings": "Advanced Settings",
+    "providers": {
+      "ollama": "Local Ollama",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "moonshot": "Kimi (Moonshot)",
+      "zhipu": "Zhipu (GLM)",
+      "bailian": "Aliyun Bailian",
+      "qwen": "Qwen"
+    },
     "modelSelection": "Model Selection",
     "manualInput": "Could not auto-detect models. Please enter model name manually.",
     "apiEndpoint": "API Endpoint",
@@ -61,17 +71,33 @@
     "precise": "Precise",
     "creative": "Creative",
     "createAction": "Create Character",
+    "editTitle": "Edit AI Character",
+    "saveChanges": "Save Changes",
     "creating": "Creating..."
   },
   "chat": {
     "inputPlaceholder": "Join the discussion...",
     "send": "Send",
-    "systemIntro": "Today we are discussing: {topic}",
+    "systemIntro": "Today we are discussing: {{topic}}",
+    "hostName": "Host",
+    "hostIntro": "Hello everyone, I am your host. We are honored to have you here. Today's topic is: \"{{topic}}\". I look forward to your insights!",
+    "hostRoundRobinStart": "Let's start by hearing from each of you. Please briefly state your position.",
     "back": "Back to Home",
-    "thinking": "Thinking..."
+    "thinking": "Thinking...",
+    "autoScrollOn": "Auto-scroll: On",
+    "autoScrollOff": "Auto-scroll: Off",
+    "scrollToBottom": "Scroll to Bottom"
   },
-  "teamCard": {
-    "enterChat": "Enter Chat",
-    "members": "Members"
+  "myCharacters": {
+    "title": "My AI Characters",
+    "empty": "No Custom Characters Yet",
+    "emptyDesc": "Create unique AI personalities powered by Ollama or OpenAI to join your roundtables.",
+    "deleteConfirm": "Are you sure you want to delete this character? This action cannot be undone."
+  },
+  "common": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
   }
 }

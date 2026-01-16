@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { CreateTeam } from './pages/CreateTeam';
 import { CreateCharacter } from './pages/CreateCharacter';
+import { MyCharacters } from './pages/MyCharacters';
 import { ChatRoom } from './pages/ChatRoom';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/create" element={<CreateTeam />} />
           <Route path="/create-character" element={<CreateCharacter />} />
+          <Route path="/my-characters" element={<MyCharacters />} />
           <Route path="/chat/:teamId" element={<ChatRoom />} />
         </Routes>
       </Layout>

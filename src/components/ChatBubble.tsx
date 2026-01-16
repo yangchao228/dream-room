@@ -43,20 +43,22 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
         </div>
       )}
       
-      <div className={cn(
-        "max-w-[80%] rounded-2xl px-4 py-3 shadow-sm",
-        isUser 
-          ? "bg-emerald-500 text-white rounded-br-none" 
-          : "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-none"
-      )}>
+      <div className="flex flex-col max-w-[80%]">
         {!isUser && character && (
-          <div className="text-xs font-bold mb-1 opacity-70">
+          <span className="text-xs text-slate-500 dark:text-slate-400 mb-1 ml-1">
             {displayName}
-          </div>
+          </span>
         )}
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-          {message.content}
-        </p>
+        <div className={cn(
+          "rounded-2xl px-4 py-3 shadow-sm",
+          isUser 
+            ? "bg-emerald-500 text-white rounded-br-none" 
+            : "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-none"
+        )}>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+            {message.content}
+          </p>
+        </div>
       </div>
 
       {isUser && (

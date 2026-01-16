@@ -32,6 +32,19 @@ export const storage = {
     }
   },
 
+  deleteTeam: (id: string): void => {
+    try {
+      const teams = storage.getTeams();
+      const newTeams = teams.filter(t => t.id !== id);
+      localStorage.setItem(TEAMS_KEY, JSON.stringify(newTeams));
+      
+      // Also cleanup messages
+      localStorage.removeItem(`${MESSAGES_KEY_PREFIX}${id}`);
+    } catch (e) {
+      console.error('Failed to delete team from storage', e);
+    }
+  },
+
   // Custom Characters
   getCustomCharacters: (): Character[] => {
     try {

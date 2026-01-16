@@ -1,22 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { Team } from '../types';
 import { storage } from '../utils/storage';
 import { TeamCard } from '../components/TeamCard';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const Home: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
+  const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     setTeams(storage.getTeams());
   }, []);
 
+  const handleDeleteClick = (id: string) => {
+    setTeamToDelete(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (teamToDelete) {
+      storage.deleteTeam(teamToDelete);
+      setTeams(storage.getTeams());
+      setTeamToDelete(null);
+    }
+  };
+
   return (
     <div className="space-y-8">
-      <div className="text-center space-y-4 py-8">
+      <div className="flex justify-end px-4">
+        <Link 
+          to="/my-characters"
+          className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+        >
+          <Users className="w-4 h-4" />
+          {t('home.manageCharacters', 'My Characters')}
+        </Link>
+      </div>
+
+      <div className="text-center space-y-4 py-4">
         <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-5xl">
           {t('home.myTeams')}
         </h1>
@@ -55,10 +80,23 @@ export const Home: React.FC = () => {
           </Link>
           
           {teams.map((team) => (
-            <TeamCard key={team.id} team={team} />
+            <TeamCard 
+              key={team.id} 
+              team={team} 
+              onDelete={handleDeleteClick}
+            />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!teamToDelete}
+        title={t('common.delete', 'Delete')}
+        message={t('home.deleteTeamConfirm', 'Are you sure you want to delete this team?')}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setTeamToDelete(null)}
+        type="danger"
+      />
     </div>
   );
 };

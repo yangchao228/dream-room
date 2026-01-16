@@ -13,7 +13,9 @@
     "create": "创建新团队",
     "emptyState": "创建一个AI偶像们的圆桌讨论吧！",
     "members": "成员",
-    "topic": "话题"
+    "topic": "话题",
+    "manageCharacters": "我的角色",
+    "deleteTeamConfirm": "确定要删除这个聊天组吗？"
   },
   "create": {
     "title": "组建你的团队",
@@ -42,8 +44,16 @@
     "descPlaceholder": "一句话简介...",
     "modelConfig": "模型配置",
     "provider": "模型提供商",
-    "localOllama": "本地 Ollama",
-    "openai": "OpenAI",
+    "advancedSettings": "高级设置",
+    "providers": {
+      "ollama": "本地 Ollama",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "moonshot": "Kimi (Moonshot)",
+      "zhipu": "智谱 (GLM)",
+      "bailian": "阿里云百炼",
+      "qwen": "通义千问 (Qwen)"
+    },
     "modelSelection": "模型选择",
     "manualInput": "无法自动检测模型。请手动输入模型名称。",
     "apiEndpoint": "API 地址",
@@ -61,17 +71,33 @@
     "precise": "严谨",
     "creative": "创意",
     "createAction": "创建角色",
+    "editTitle": "编辑 AI 角色",
+    "saveChanges": "保存修改",
     "creating": "创建中..."
   },
   "chat": {
     "inputPlaceholder": "加入讨论...",
     "send": "发送",
-    "systemIntro": "今天我们讨论的话题是：{topic}",
+    "systemIntro": "今天我们讨论的话题是：{{topic}}",
+    "hostName": "主持人",
+    "hostIntro": "大家好，我是本次圆桌会议的主持人。今天我们非常荣幸邀请到了各位嘉宾。我们要探讨的话题是：“{{topic}}”。期待大家的精彩发言！",
+    "hostRoundRobinStart": "让我们先听听每位嘉宾的看法。请简要陈述您的立场。",
     "back": "返回首页",
-    "thinking": "思考中..."
+    "thinking": "思考中...",
+    "autoScrollOn": "自动滚动：开",
+    "autoScrollOff": "自动滚动：关",
+    "scrollToBottom": "滚动到底部"
   },
-  "teamCard": {
-    "enterChat": "进入聊天",
-    "members": "成员"
+  "myCharacters": {
+    "title": "我的 AI 角色",
+    "empty": "还没有自定义角色",
+    "emptyDesc": "创建一个由 Ollama 或 OpenAI 驱动的独特 AI 角色来加入您的圆桌讨论。",
+    "deleteConfirm": "确定要删除这个角色吗？此操作无法撤销。"
+  },
+  "common": {
+    "edit": "编辑",
+    "delete": "删除",
+    "cancel": "取消",
+    "confirm": "确认"
   }
 }

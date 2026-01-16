@@ -2,7 +2,7 @@ export type PersonalityType = 'musk' | 'einstein' | 'luxun' | 'kobe' | 'custom';
 
 export type CharacterProvider = 'static' | 'ai';
 
-export type ModelProvider = 'ollama' | 'openai';
+export type ModelProvider = 'ollama' | 'openai' | 'deepseek' | 'moonshot' | 'zhipu' | 'bailian' | 'qwen';
 
 export interface ModelConfig {
   provider: ModelProvider;

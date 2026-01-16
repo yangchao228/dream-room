@@ -97,7 +97,26 @@ class OpenAIService implements LLMService {
     }
 
     try {
-      const response = await fetch(`${endpoint.replace(/\/$/, '')}/chat/completions`, {
+      // Use direct fetch without proxy headers if possible, or ensure CORS is handled by the provider
+      // Most providers support CORS for browser usage if configured, but for safety in local dev:
+      // We are just doing a standard fetch. If there are CORS issues, the user might need a proxy.
+      // However, the error might be due to endpoint construction.
+      
+      const baseUrl = endpoint.replace(/\/$/, '');
+      // Some endpoints might already include /v1, some might not.
+      // Standard OpenAI SDK appends /chat/completions to base URL.
+      // If user provided "https://api.deepseek.com/v1", we append "/chat/completions" -> "https://api.deepseek.com/v1/chat/completions"
+      
+      // Fix for OpenAI official API: it should be https://api.openai.com/v1, but sometimes user might just provide https://api.openai.com
+      // Also, check if it's actually OpenAI provider to ensure correct endpoint
+      
+      let finalEndpoint = baseUrl;
+      // If the URL ends with /v1/v1 (double v1), fix it
+      if (finalEndpoint.endsWith('/v1/v1')) {
+          finalEndpoint = finalEndpoint.substring(0, finalEndpoint.length - 3);
+      }
+      
+      const response = await fetch(`${finalEndpoint}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,37 +126,86 @@ class OpenAIService implements LLMService {
           model: config.model,
           messages: finalMessages,
           temperature: config.temperature ?? 0.7,
+          stream: false
         })
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'OpenAI API error');
+        const errorText = await response.text();
+        let errorMsg = `API Error: ${response.status} ${response.statusText}`;
+        try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error?.message) errorMsg = errorJson.error.message;
+        } catch (e) {
+            // ignore parse error
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
-      return data.choices[0].message.content;
-    } catch (error) {
-      console.error('OpenAI request failed:', error);
-      throw error;
+      let content = data.choices[0].message.content;
+      
+      // Clean up <think> tags if present (common in reasoning models like DeepSeek R1)
+      // Handle escaped HTML entities just in case (e.g. &lt;think&gt;)
+      content = content
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/&lt;think&gt;[\s\S]*?&lt;\/think&gt;/gi, '')
+        .trim();
+      
+      return content;
+    } catch (error: any) {
+      console.error('LLM request failed:', error);
+      throw new Error(error.message || 'Failed to connect to LLM provider');
     }
   }
 
   async testConnection(config: ModelConfig): Promise<boolean> {
     try {
-      // Try a simple models list call to verify key
       if (!config.apiKey) return false;
       const endpoint = config.apiEndpoint || 'https://api.openai.com/v1';
       
-      const response = await fetch(`${endpoint.replace(/\/$/, '')}/models`, {
-        method: 'GET',
+      // Some providers don't support /models endpoint or have strict CORS
+      // A better test might be a cheap chat completion
+      
+      const baseUrl = endpoint.replace(/\/$/, '');
+      
+      // Try /models first as it's read-only
+      try {
+          const response = await fetch(`${baseUrl}/models`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${config.apiKey}`
+            }
+          });
+          if (response.ok) return true;
+      } catch (e) {
+          // If /models fails (e.g. CORS or 404), try a minimal chat completion
+          console.warn('Models endpoint failed, trying chat completion...', e);
+      }
+
+      // Fallback: Try a minimal chat completion
+      
+      let finalEndpoint = baseUrl;
+      if (finalEndpoint.endsWith('/v1/v1')) {
+          finalEndpoint = finalEndpoint.substring(0, finalEndpoint.length - 3);
+      }
+
+      const response = await fetch(`${finalEndpoint}/chat/completions`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${config.apiKey}`
-        }
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 1
+        })
       });
       
       return response.ok;
-    } catch {
+    } catch (error) {
+      console.error('Test connection failed:', error);
       return false;
     }
   }
@@ -154,9 +222,10 @@ export const llmService = {
   openai: new OpenAIService(),
   
   getService(provider: ModelProvider): LLMService {
-    if (provider === 'openai') {
-      return this.openai;
+    if (provider === 'ollama') {
+      return this.ollama;
     }
-    return this.ollama;
+    // All other providers (deepseek, moonshot, etc.) use OpenAI compatible API
+    return this.openai;
   }
 };

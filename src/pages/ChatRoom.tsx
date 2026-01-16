@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, ChevronDown, Lock, Unlock } from 'lucide-react';
 import { Team, Message, Character } from '../types';
 import { storage } from '../utils/storage';
 import { getCharacterById } from '../data/characters';
@@ -9,6 +9,9 @@ import { ChatBubble } from '../components/ChatBubble';
 import { cn } from '../utils/cn';
 import i18nInstance from '../i18n';
 import { llmService, ChatMessage } from '../services/llm';
+
+// New types for meeting flow
+type MeetingPhase = 'intro' | 'round_robin' | 'debate' | 'closing';
 
 export const ChatRoom: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
@@ -18,16 +21,30 @@ export const ChatRoom: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   
+  // Meeting State
+  const [phase, setPhase] = useState<MeetingPhase>('intro');
+  const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null);
+  const [roundRobinIndex, setRoundRobinIndex] = useState(0);
+
   // Thinking state for AI characters
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingCharacter, setThinkingCharacter] = useState<Character | null>(null);
   
+  // Auto-scroll state
+  const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  
   // Refs for simulation loop
   const messagesRef = useRef<Message[]>([]);
   const teamRef = useRef<Team | null>(null);
-  const speakerIndexRef = useRef(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const initializedTeamIdRef = useRef<string | null>(null);
+  
+  // Refs for flow control
+  const phaseRef = useRef<MeetingPhase>('intro');
+  const roundRobinIndexRef = useRef(0);
+  const nextSpeakerIdRef = useRef<string | null>(null);
 
   // Sync refs with state
   useEffect(() => {
@@ -37,10 +54,23 @@ export const ChatRoom: React.FC = () => {
   useEffect(() => {
     teamRef.current = team;
   }, [team]);
+  
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+  
+  useEffect(() => {
+    roundRobinIndexRef.current = roundRobinIndex;
+  }, [roundRobinIndex]);
 
   // Initial Load
   useEffect(() => {
     if (!teamId) return;
+    
+    // Prevent double initialization in Strict Mode
+    if (initializedTeamIdRef.current === teamId) return;
+    initializedTeamIdRef.current = teamId;
+
     const teams = storage.getTeams();
     const foundTeam = teams.find(t => t.id === teamId);
     
@@ -49,35 +79,133 @@ export const ChatRoom: React.FC = () => {
       return;
     }
 
-    setTeam(foundTeam);
+    // UPDATE: Replace team characters with latest data from storage/source
+    const customCharacters = storage.getCustomCharacters();
+    const updatedCharacters = foundTeam.characters.map(char => {
+      if (char.isCustom) {
+        const latestChar = customCharacters.find(c => c.id === char.id);
+        return latestChar || char;
+      }
+      return char;
+    });
+    
+    const teamWithLiveCharacters = {
+      ...foundTeam,
+      characters: updatedCharacters
+    };
+
+    setTeam(teamWithLiveCharacters);
     
     // Load existing messages or start new
     const existingMessages = storage.getMessages(teamId);
     if (existingMessages.length > 0) {
-      setMessages(existingMessages);
+      // Clean up potential duplicate host messages from Strict Mode double-invoke
+      const uniqueMessages = existingMessages.filter((msg, index, self) => {
+        if (msg.sender !== 'system' && typeof msg.sender !== 'string' && msg.sender.id === 'host') {
+           const firstHostIndex = self.findIndex(m => m.sender !== 'system' && typeof m.sender !== 'string' && m.sender.id === 'host');
+           return index === firstHostIndex;
+        }
+        return true;
+      });
+      
+      setMessages(uniqueMessages);
+      // Determine phase based on message history length as a heuristic if rejoining
+      // Simple heuristic: if > 2 messages per character + host, maybe in debate
+      // For now, reset to intro or just assume free flow if returning
+      // Let's just default to 'debate' if returning to an active room to allow free flow
+      if (uniqueMessages.length > 3) {
+          setPhase('debate');
+          phaseRef.current = 'debate';
+      }
     } else {
-      // Start with system message
-      const systemMsg: Message = {
+      // Start with Host message
+      const hostCharacter: Character = {
+        id: 'host',
+        name: t('chat.hostName', 'Host'),
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
+        tag: 'Host',
+        description: 'Roundtable Host',
+        personality: 'neutral',
+        phrases: [],
+        isCustom: false,
+        color: 'border-blue-500'
+      };
+
+      // We need to resolve the translation key before adding to message state
+      // The t() function returns the translated string, so t('chat.hostIntro', ...) is correct
+      // But if 'chat.hostIntro' is not found, it returns the key.
+      // Make sure i18n is initialized.
+      
+      const hostMsg: Message = {
         id: crypto.randomUUID(),
-        sender: 'system',
-        content: t('chat.systemIntro', { topic: foundTeam.topic }),
+        sender: hostCharacter,
+        content: t('chat.hostIntro', { topic: foundTeam.topic }),
         timestamp: Date.now()
       };
-      addMessage(systemMsg, teamId);
+      addMessage(hostMsg, teamId);
+      
+      // Initialize flow - explicitly set phase to intro if creating new session
+      setPhase('intro');
+      phaseRef.current = 'intro';
+      
+      // Force start simulation after a short delay to ensure Host message is rendered
+      // and state is settled.
     }
 
     // Start simulation
-    startSimulation();
+    // Use a slight delay to allow state updates to propagate
+    const timerId = setTimeout(() => {
+        startSimulation();
+    }, 100);
 
-    return () => stopSimulation();
+    return () => {
+        clearTimeout(timerId);
+        stopSimulation();
+    };
   }, [teamId, navigate]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll effect
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (isAutoScrollEnabled && scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
-  }, [messages, isThinking]);
+  }, [messages, isThinking, isAutoScrollEnabled]);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 80;
+    
+    if (!isAtBottom && isAutoScrollEnabled) setIsAutoScrollEnabled(false);
+    if (isAtBottom && !isAutoScrollEnabled) setIsAutoScrollEnabled(true);
+    setShowScrollButton(!isAtBottom);
+  };
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+      setIsAutoScrollEnabled(true);
+    }
+  };
+
+  const toggleAutoScroll = () => {
+    setIsAutoScrollEnabled(prev => {
+      const newState = !prev;
+      if (newState && scrollRef.current) {
+        scrollRef.current.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+      return newState;
+    });
+  };
 
   const addMessage = (msg: Message, currentTeamId: string) => {
     setMessages(prev => {
@@ -88,7 +216,6 @@ export const ChatRoom: React.FC = () => {
   };
 
   const getRandomPhrase = (characterId: string, topic: string) => {
-    // Always fetch fresh data based on current language
     const currentCharacter = getCharacterById(characterId, i18nInstance.language);
     if (!currentCharacter || !currentCharacter.phrases.length) return '...';
     
@@ -99,28 +226,39 @@ export const ChatRoom: React.FC = () => {
   const generateAIResponse = async (character: Character, topic: string, history: Message[]) => {
     if (!character.modelConfig) return '...';
 
-    // Prepare history for LLM
-    // Limit history to last 10 messages to save tokens/context
-    const recentHistory = history.slice(-10);
+    const recentHistory = history.slice(-15); // Increased context window
     const chatMessages: ChatMessage[] = recentHistory.map(msg => {
-      if (msg.sender === 'system') {
-        return { role: 'system', content: msg.content };
-      }
-      if (msg.sender === 'user') {
-        return { role: 'user', content: msg.content };
-      }
-      // If sender is a character
+      if (msg.sender === 'system') return { role: 'system', content: msg.content };
+      if (msg.sender === 'user') return { role: 'user', content: msg.content };
+      
+      const senderId = typeof msg.sender === 'string' ? msg.sender : msg.sender.id;
+      const senderName = typeof msg.sender === 'string' ? 'User' : msg.sender.name;
+      
       return { 
-        role: msg.sender.id === character.id ? 'assistant' : 'user',
-        content: `${msg.sender.name}: ${msg.content}` 
+        role: senderId === character.id ? 'assistant' : 'user',
+        content: `${senderName}: ${msg.content}` 
       };
     });
 
-    // Add current topic context if not present
+    // Add context system prompt
+    const currentPhase = phaseRef.current;
+    let phaseInstruction = '';
+    
+    if (currentPhase === 'round_robin') {
+        phaseInstruction = `You are participating in a roundtable discussion. It is your turn to speak. 
+        Briefly introduce yourself and state your core position on the topic: "${topic}". 
+        Keep it concise (under 3 sentences). Do not argue with others yet.`;
+    } else if (currentPhase === 'debate') {
+        phaseInstruction = `You are in a free debate about "${topic}". 
+        React to the previous speaker if relevant, or advance your own viewpoint. 
+        Keep the discussion lively but stay in character. 
+        Your character description: ${character.description || character.tag}.`;
+    }
+
     if (chatMessages.length === 0 || chatMessages[0].role !== 'system') {
       chatMessages.unshift({
         role: 'system',
-        content: `Current Topic: ${topic}`
+        content: `Current Topic: ${topic}. ${phaseInstruction}`
       });
     }
 
@@ -131,6 +269,23 @@ export const ChatRoom: React.FC = () => {
       console.error('LLM generation failed:', error);
       return `(Error: Failed to connect to ${character.modelConfig.provider} model)`;
     }
+  };
+  
+  const generateHostResponse = async (topic: string, history: Message[], nextSpeakerName?: string) => {
+      // Host is simulated by simple logic or a lightweight model call if we had one.
+      // For now, we'll use a simple logic or assume Host is "System" for simplicity, 
+      // but to make it dynamic we could use an LLM if we assigned one to Host.
+      // Here we'll just return pre-set phrases for flow control to ensure stability.
+      
+      if (phaseRef.current === 'intro') {
+          return t('chat.hostRoundRobinStart', 'Let\'s start by hearing from each of you. Please briefly state your position.');
+      }
+      
+      if (nextSpeakerName) {
+          return `Thank you. Next, let's hear from ${nextSpeakerName}.`;
+      }
+      
+      return "Interesting point. Who would like to respond?";
   };
 
   const startSimulation = () => {
@@ -146,7 +301,6 @@ export const ChatRoom: React.FC = () => {
   };
 
   const scheduleNextTurn = () => {
-    // If already thinking, don't schedule
     if (isThinking) return;
 
     timeoutRef.current = setTimeout(async () => {
@@ -154,14 +308,107 @@ export const ChatRoom: React.FC = () => {
       
       const currentTeam = teamRef.current;
       const characters = currentTeam.characters;
-      const speaker = characters[speakerIndexRef.current % characters.length];
       
-      // Determine if speaker is AI or Static
+      // --- MEETING FLOW LOGIC ---
+      
+      // 1. INTRO PHASE: Host just spoke (in useEffect). Transition to Round Robin.
+      if (phaseRef.current === 'intro') {
+          setPhase('round_robin');
+          phaseRef.current = 'round_robin';
+          setRoundRobinIndex(0);
+          roundRobinIndexRef.current = 0;
+          scheduleNextTurn();
+          return;
+      }
+      
+      // 2. ROUND ROBIN PHASE: Each character speaks once.
+      if (phaseRef.current === 'round_robin') {
+          const idx = roundRobinIndexRef.current;
+          
+          if (idx < characters.length) {
+              const speaker = characters[idx];
+              
+              // Host transition message before first speaker? 
+              // Maybe not needed if Host Intro covered it, but let's be smooth.
+              
+              await processSpeakerTurn(speaker, currentTeam);
+              
+              setRoundRobinIndex(prev => prev + 1);
+              roundRobinIndexRef.current += 1;
+              scheduleNextTurn();
+          } else {
+              // All spoke. Transition to Debate.
+              setPhase('debate');
+              phaseRef.current = 'debate';
+              
+              // Host announces debate start
+              const hostCharacter: Character = {
+                id: 'host',
+                name: t('chat.hostName', 'Host'),
+                avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
+                tag: 'Host',
+                description: 'Roundtable Host',
+                personality: 'neutral',
+                phrases: [],
+                isCustom: false,
+                color: 'border-blue-500'
+              };
+              
+              const hostMsg: Message = {
+                  id: crypto.randomUUID(),
+                  sender: hostCharacter,
+                  content: "Thank you everyone for your opening statements. Now let's open the floor for free discussion. Feel free to respond to each other.",
+                  timestamp: Date.now()
+              };
+              addMessage(hostMsg, currentTeam.id);
+              
+              scheduleNextTurn();
+          }
+          return;
+      }
+      
+      // 3. DEBATE PHASE: Random/Weighted selection or User Input
+      if (phaseRef.current === 'debate') {
+          let speaker: Character;
+          
+          // Check for priority override (e.g. from user mention)
+          if (nextSpeakerIdRef.current) {
+              const forcedSpeaker = characters.find(c => c.id === nextSpeakerIdRef.current);
+              if (forcedSpeaker) {
+                  speaker = forcedSpeaker;
+              } else {
+                  // Fallback if forced speaker not found
+                  const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+                  const lastSpeakerId = typeof lastMsg?.sender === 'string' ? lastMsg.sender : lastMsg?.sender?.id;
+                  let availableSpeakers = characters.filter(c => c.id !== lastSpeakerId);
+                  if (availableSpeakers.length === 0) availableSpeakers = characters;
+                  speaker = availableSpeakers[Math.floor(Math.random() * availableSpeakers.length)];
+              }
+              // Clear override
+              nextSpeakerIdRef.current = null;
+          } else {
+              // Pick a random speaker for now (simple debate)
+              // Avoid same speaker twice in a row if possible
+              const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+              const lastSpeakerId = typeof lastMsg?.sender === 'string' ? lastMsg.sender : lastMsg?.sender?.id;
+              
+              let availableSpeakers = characters.filter(c => c.id !== lastSpeakerId);
+              if (availableSpeakers.length === 0) availableSpeakers = characters;
+              
+              speaker = availableSpeakers[Math.floor(Math.random() * availableSpeakers.length)];
+          }
+          
+          await processSpeakerTurn(speaker, currentTeam);
+          scheduleNextTurn();
+      }
+
+    }, 2000); // 2s interval between turns
+  };
+  
+  const processSpeakerTurn = async (speaker: Character, currentTeam: Team) => {
       if (speaker.provider === 'ai' && speaker.modelConfig) {
         setIsThinking(true);
         setThinkingCharacter(speaker);
-        
-        // Pause simulation while thinking
         stopSimulation();
         
         const text = await generateAIResponse(speaker, currentTeam.topic, messagesRef.current);
@@ -175,38 +422,40 @@ export const ChatRoom: React.FC = () => {
           content: text,
           timestamp: Date.now()
         };
-
         addMessage(newMsg, currentTeam.id);
-        
-        // Advance and resume
-        speakerIndexRef.current++;
-        scheduleNextTurn();
       } else {
         // Static character logic
         const text = getRandomPhrase(speaker.id, currentTeam.topic);
-        
         const newMsg: Message = {
           id: crypto.randomUUID(),
           sender: speaker,
           content: text,
           timestamp: Date.now()
         };
-
         addMessage(newMsg, currentTeam.id);
-        
-        // Advance turn
-        speakerIndexRef.current++;
-        scheduleNextTurn();
       }
-    }, 1500); // 1.5s interval
+  };
+
+  const handleMentionClick = (characterName: string) => {
+    setInputText(prev => `${prev}@${characterName} `);
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !team) return;
 
-    // Stop current timer to inject user message
     stopSimulation();
+
+    // Check for mentions
+    const mentionedCharacter = team.characters.find(c => inputText.includes(`@${c.name}`));
+    if (mentionedCharacter) {
+      nextSpeakerIdRef.current = mentionedCharacter.id;
+      // Force switch to debate phase to allow immediate response if not already
+      if (phaseRef.current !== 'debate') {
+          setPhase('debate');
+          phaseRef.current = 'debate';
+      }
+    }
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -217,10 +466,17 @@ export const ChatRoom: React.FC = () => {
 
     addMessage(userMsg, team.id);
     setInputText('');
+    setIsAutoScrollEnabled(true);
+    
+    // If user interrupts, maybe reset flow or just continue debate
+    if (phaseRef.current === 'intro' || phaseRef.current === 'round_robin') {
+        // User interrupted early phases, maybe just switch to debate to handle it?
+        // Or just let the next scheduled event happen.
+        // Let's force switch to debate so the AI reacts to the user
+        setPhase('debate');
+        phaseRef.current = 'debate';
+    }
 
-    // Restart simulation after a short delay
-    // If an AI was thinking, this might interrupt it, but that's acceptable for now
-    // Ideally we might want to let the AI finish or cancel its request
     setTimeout(() => {
         scheduleNextTurn();
     }, 1000);
@@ -245,28 +501,63 @@ export const ChatRoom: React.FC = () => {
           <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
              Live Roundtable
+             {phase === 'intro' && <span className="ml-1 px-1 bg-blue-100 text-blue-700 rounded text-[10px]">Intro</span>}
+             {phase === 'round_robin' && <span className="ml-1 px-1 bg-purple-100 text-purple-700 rounded text-[10px]">Statements</span>}
+             {phase === 'debate' && <span className="ml-1 px-1 bg-orange-100 text-orange-700 rounded text-[10px]">Debate</span>}
           </div>
         </div>
-        <div className="w-9"></div> {/* Spacer for centering */}
+        
+        <button
+          onClick={toggleAutoScroll}
+          className={cn(
+            "p-2 rounded-full transition-colors",
+            isAutoScrollEnabled 
+              ? "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" 
+              : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+          )}
+          title={isAutoScrollEnabled ? t('chat.autoScrollOn', 'Auto-scroll On') : t('chat.autoScrollOff', 'Auto-scroll Off')}
+        >
+          {isAutoScrollEnabled ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+        </button>
       </div>
 
       {/* Chat Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 pt-20 pb-4 scroll-smooth space-y-4 bg-slate-50 dark:bg-slate-950/50"
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 pt-20 pb-4 scroll-smooth space-y-4 bg-slate-50 dark:bg-slate-950/50 relative"
       >
+        {/* Participants Bar */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
+          {team.characters.map((char) => (
+            <button
+              key={char.id}
+              onClick={() => handleMentionClick(char.name)}
+              className="flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+            >
+              <img 
+                src={char.avatar} 
+                alt={char.name} 
+                className={cn("w-5 h-5 rounded-full object-cover border", char.color)}
+              />
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                {char.name}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} />
         ))}
         
-        {/* Thinking Indicator */}
         {isThinking && thinkingCharacter && (
           <div className="flex justify-start mb-4 animate-in fade-in slide-in-from-bottom-2">
              <div className="flex items-end gap-2 max-w-[80%]">
                <div className={cn(
                   "w-8 h-8 rounded-full border-2 flex-shrink-0 bg-slate-200 dark:bg-slate-800",
                   thinkingCharacter.color || "border-slate-200"
-                )}>
+               )}>
                   <img 
                     src={thinkingCharacter.avatar} 
                     alt={thinkingCharacter.name}
@@ -283,9 +574,18 @@ export const ChatRoom: React.FC = () => {
           </div>
         )}
         
-        {/* Invisible element to pad bottom for scrolling */}
         <div className="h-4"></div>
       </div>
+
+      {showScrollButton && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-24 right-6 p-3 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-all animate-in fade-in zoom-in duration-200 z-20"
+          title={t('chat.scrollToBottom', 'Scroll to Bottom')}
+        >
+          <ChevronDown className="w-5 h-5" />
+        </button>
+      )}
 
       {/* Input Area */}
       <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">

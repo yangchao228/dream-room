@@ -1,23 +1,33 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Team } from '../types';
-import { MessageSquare, Users } from 'lucide-react';
+import { MessageSquare, Users, Trash2 } from 'lucide-react';
 import { getCharacterById } from '../data/characters';
 
 interface TeamCardProps {
   team: Team;
+  onDelete?: (id: string) => void;
 }
 
-export const TeamCard: React.FC<TeamCardProps> = ({ team }) => {
+export const TeamCard: React.FC<TeamCardProps> = ({ team, onDelete }) => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(team.id);
+    }
+  };
 
   return (
     <Link 
       to={`/chat/${team.id}`}
-      className="block p-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-emerald-500/50 transition-all duration-200"
+      className="block p-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-emerald-500/50 transition-all duration-200 group relative"
     >
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between items-start mb-4 pr-8">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white line-clamp-1">
           {team.topic}
         </h3>
@@ -25,6 +35,16 @@ export const TeamCard: React.FC<TeamCardProps> = ({ team }) => {
           {new Date(team.createdAt).toLocaleDateString()}
         </span>
       </div>
+      
+      {onDelete && (
+        <button
+          onClick={handleDelete}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+          title={t('common.delete', 'Delete')}
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
       
       <div className="flex items-center gap-2 mb-4">
         <div className="flex -space-x-3 overflow-hidden">

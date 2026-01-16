@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, Sparkles, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Character, ModelConfig, ModelProvider, PersonalityType } from '../types';
@@ -7,8 +7,41 @@ import { storage } from '../utils/storage';
 import { llmService } from '../services/llm';
 import { cn } from '../utils/cn';
 
+const PROVIDER_DEFAULTS: Record<string, { endpoint: string; models: string[] }> = {
+  ollama: {
+    endpoint: 'http://localhost:11434',
+    models: [] // Fetched dynamically
+  },
+  openai: {
+    endpoint: 'https://api.openai.com/v1',
+    models: ['gpt-3.5-turbo', 'gpt-4o', 'gpt-4-turbo']
+  },
+  deepseek: {
+    endpoint: 'https://api.deepseek.com/v1',
+    models: ['deepseek-chat', 'deepseek-coder']
+  },
+  moonshot: {
+    endpoint: 'https://api.moonshot.cn/v1',
+    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k']
+  },
+  zhipu: {
+    endpoint: 'https://open.bigmodel.cn/api/paas/v4',
+    models: ['glm-4', 'glm-3-turbo']
+  },
+  bailian: {
+    endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max']
+  },
+  qwen: {
+    endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max']
+  }
+};
+
 export const CreateCharacter: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
   const { t } = useTranslation();
   
   // Form State
@@ -31,12 +64,58 @@ export const CreateCharacter: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load Ollama models on mount
+  // Load existing character if editing
+  useEffect(() => {
+    if (editId) {
+      const characters = storage.getCustomCharacters();
+      const charToEdit = characters.find(c => c.id === editId);
+      
+      if (charToEdit) {
+        setName(charToEdit.name);
+        setTag(charToEdit.tag);
+        setDescription(charToEdit.description || '');
+        
+        if (charToEdit.modelConfig) {
+          const config = charToEdit.modelConfig;
+          setProvider(config.provider);
+          setApiEndpoint(config.apiEndpoint || PROVIDER_DEFAULTS[config.provider]?.endpoint || '');
+          setApiKey(config.apiKey || '');
+          setTemperature(config.temperature ?? 0.7);
+          setSystemPrompt(config.systemPrompt || '');
+          
+          // Set model name - this might get updated when models are fetched, but we set initial state
+          setModelName(config.model);
+          // If using Ollama, we'll check if this model is in the list later
+          if (config.provider === 'ollama') {
+            setCustomModelName(config.model);
+          }
+        }
+      }
+    }
+  }, [editId]);
+
+  // Load Ollama models on mount or provider change
   useEffect(() => {
     if (provider === 'ollama') {
       fetchOllamaModels();
     } else {
-      setApiEndpoint('https://api.openai.com/v1');
+      // For other providers, set default endpoint if user hasn't customized it
+      // or if switching between cloud providers
+      if (!editId) {
+         setApiEndpoint(PROVIDER_DEFAULTS[provider]?.endpoint || '');
+         if (PROVIDER_DEFAULTS[provider]?.models.length > 0) {
+             setModelName(PROVIDER_DEFAULTS[provider].models[0]);
+         }
+      } else {
+         // Even in edit mode, if we switch provider manually, update defaults
+         // Check if current endpoint matches the OLD provider's default
+         // This is tricky, simplified: if switching provider, reset to default unless it's the initial load
+         // For now, let's just use the defaults when provider changes
+         setApiEndpoint(PROVIDER_DEFAULTS[provider]?.endpoint || '');
+         if (PROVIDER_DEFAULTS[provider]?.models.length > 0) {
+             setModelName(PROVIDER_DEFAULTS[provider].models[0]);
+         }
+      }
     }
   }, [provider]);
 
@@ -46,9 +125,16 @@ export const CreateCharacter: React.FC = () => {
     setOllamaModels(models);
     setIsLoadingModels(false);
     
-    // If models found and current modelName not in list, select first one
-    if (models.length > 0 && !models.includes(modelName) && !customModelName) {
-      setModelName(models[0]);
+    // Logic to set modelName based on fetched list
+    if (models.length > 0) {
+      // If current model (from edit or default) is in the list, keep it
+      if (models.includes(customModelName || modelName)) {
+        setModelName(customModelName || modelName);
+        setCustomModelName(''); // Clear custom input as we found a match
+      } else if (!editId && !customModelName) {
+        // If creating new and no custom input, default to first available
+        setModelName(models[0]);
+      }
     }
   };
 
@@ -72,29 +158,29 @@ export const CreateCharacter: React.FC = () => {
 
     setIsSubmitting(true);
     
-    const newCharacter: Character = {
-      id: crypto.randomUUID(),
+    const characterData: Character = {
+      id: editId || crypto.randomUUID(),
       name,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`, // Simple avatar generation
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
       tag,
       personality: 'custom' as PersonalityType,
-      color: 'border-purple-500', // Default color for custom characters
+      color: 'border-purple-500',
       phrases: [],
       provider: 'ai',
       description,
       isCustom: true,
-      createdAt: Date.now(),
+      createdAt: editId ? undefined : Date.now(), // Don't update createdAt on edit
       modelConfig: {
         provider,
-        model: customModelName || modelName,
+        model: provider === 'ollama' && customModelName ? customModelName : modelName,
         apiEndpoint,
-        apiKey: provider === 'openai' ? apiKey : undefined,
+        apiKey: provider !== 'ollama' ? apiKey : undefined,
         temperature,
         systemPrompt
       }
     };
 
-    storage.saveCustomCharacter(newCharacter);
+    storage.saveCustomCharacter(characterData);
     
     // Simulate short delay
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -113,7 +199,7 @@ export const CreateCharacter: React.FC = () => {
           <ArrowLeft className="w-6 h-6 text-slate-600 dark:text-slate-400" />
         </button>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-          {t('character.title')}
+          {editId ? t('character.editTitle', 'Edit AI Character') : t('character.title')}
         </h1>
       </div>
 
@@ -180,34 +266,26 @@ export const CreateCharacter: React.FC = () => {
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 {t('character.provider')}
               </label>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setProvider('ollama')}
-                  className={cn(
-                    "flex-1 py-3 px-4 rounded-xl border-2 transition-all font-medium",
-                    provider === 'ollama'
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                      : "border-slate-200 dark:border-slate-700 hover:border-blue-300"
-                  )}
-                >
-                  {t('character.localOllama')}
-                </button>
-                <button
-                  onClick={() => setProvider('openai')}
-                  className={cn(
-                    "flex-1 py-3 px-4 rounded-xl border-2 transition-all font-medium",
-                    provider === 'openai'
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                      : "border-slate-200 dark:border-slate-700 hover:border-blue-300"
-                  )}
-                >
-                  {t('character.openai')}
-                </button>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(['ollama', 'openai', 'deepseek', 'moonshot', 'zhipu', 'bailian'] as const).map((p) => (
+                   <button
+                    key={p}
+                    onClick={() => setProvider(p)}
+                    className={cn(
+                      "py-2 px-3 rounded-xl border-2 transition-all font-medium text-sm",
+                      provider === p
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                        : "border-slate-200 dark:border-slate-700 hover:border-blue-300"
+                    )}
+                  >
+                    {t(`character.providers.${p}`, p.charAt(0).toUpperCase() + p.slice(1))}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Ollama Specific */}
-            {provider === 'ollama' && (
+            {provider === 'ollama' ? (
               <div className="space-y-4">
                  <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -264,24 +342,28 @@ export const CreateCharacter: React.FC = () => {
                   />
                 </div>
               </div>
-            )}
-
-            {/* OpenAI Specific */}
-            {provider === 'openai' && (
+            ) : (
+              /* Cloud Providers (OpenAI Compatible) */
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     {t('character.model')}
                   </label>
-                  <select
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
-                    <option value="gpt-4o">gpt-4o</option>
-                    <option value="gpt-4-turbo">gpt-4-turbo</option>
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                        value={modelName}
+                        onChange={(e) => setModelName(e.target.value)}
+                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        {PROVIDER_DEFAULTS[provider]?.models.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                         {/* Fallback option if current model is not in list (e.g. custom input previously) */}
+                         {!PROVIDER_DEFAULTS[provider]?.models.includes(modelName) && (
+                             <option value={modelName}>{modelName}</option>
+                         )}
+                    </select>
+                   </div>
                 </div>
 
                 <div>
@@ -299,6 +381,22 @@ export const CreateCharacter: React.FC = () => {
                     {t('character.apiKeyHint')}
                   </p>
                 </div>
+                
+                {/* Allow editing endpoint for cloud providers too if needed (advanced) */}
+                <details className="text-xs text-slate-500">
+                    <summary className="cursor-pointer hover:text-blue-500 transition-colors">{t('character.advancedSettings', 'Advanced Settings')}</summary>
+                    <div className="mt-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            {t('character.apiEndpoint')}
+                        </label>
+                        <input
+                            type="text"
+                            value={apiEndpoint}
+                            onChange={(e) => setApiEndpoint(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                </details>
               </div>
             )}
 
@@ -391,7 +489,7 @@ export const CreateCharacter: React.FC = () => {
             ) : (
               <>
                 <Save className="w-5 h-5" />
-                {t('character.createAction')}
+                {editId ? t('character.saveChanges', 'Save Changes') : t('character.createAction')}
               </>
             )}
           </button>

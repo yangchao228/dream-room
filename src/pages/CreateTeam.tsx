@@ -5,7 +5,7 @@ import { getCharacters } from '../data/characters';
 import { Character, Team } from '../types';
 import { CharacterCard } from '../components/CharacterCard';
 import { storage } from '../utils/storage';
-import { ArrowRight, Users, MessageSquare, Plus } from 'lucide-react';
+import { ArrowRight, Users, MessageSquare, Plus, ArrowLeft } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 export const CreateTeam: React.FC = () => {
@@ -60,9 +60,17 @@ export const CreateTeam: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-8 text-center">
-        {t('create.title')}
-      </h1>
+      <div className="flex items-center gap-4 mb-8">
+        <button 
+          onClick={() => navigate('/')}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+        >
+          <ArrowLeft className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+        </button>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+          {t('create.title')}
+        </h1>
+      </div>
 
       <div className="space-y-8">
         {/* Step 1: Select Characters */}
