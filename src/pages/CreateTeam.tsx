@@ -2,10 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getCharacters } from '../data/characters';
-import { Character, Team } from '../types';
+import { Character, Team, TeamType } from '../types';
 import { CharacterCard } from '../components/CharacterCard';
 import { storage } from '../utils/storage';
-import { ArrowRight, Users, MessageSquare, Plus, ArrowLeft } from 'lucide-react';
+import { ArrowRight, Users, MessageSquare, Plus, ArrowLeft, MessageCircle, Gavel, Lightbulb, Mic } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 export const CreateTeam: React.FC = () => {
@@ -13,6 +13,7 @@ export const CreateTeam: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [topic, setTopic] = useState('');
+  const [teamType, setTeamType] = useState<TeamType>('chat');
   const [error, setError] = useState('');
 
   const builtInCharacters = useMemo(() => getCharacters(i18n.language), [i18n.language]);
@@ -26,7 +27,7 @@ export const CreateTeam: React.FC = () => {
     if (selectedIds.includes(character.id)) {
       setSelectedIds(selectedIds.filter(id => id !== character.id));
     } else {
-      if (selectedIds.length >= 3) {
+      if (selectedIds.length >= 4) {
         setError(t('create.error.selectChars'));
         return;
       }
@@ -50,12 +51,22 @@ export const CreateTeam: React.FC = () => {
       id: crypto.randomUUID(),
       name: `${selectedCharacters[0].name} & Friends`, // Fallback name
       topic: topic.trim(),
+      type: teamType,
       characters: selectedCharacters,
       createdAt: Date.now()
     };
 
     storage.saveTeam(newTeam);
     navigate(`/chat/${newTeam.id}`);
+  };
+  
+  const getTypeIcon = (type: TeamType) => {
+    switch (type) {
+        case 'chat': return <MessageCircle className="w-6 h-6" />;
+        case 'debate': return <Gavel className="w-6 h-6" />;
+        case 'brainstorm': return <Lightbulb className="w-6 h-6" />;
+        case 'interview': return <Mic className="w-6 h-6" />;
+    }
   };
 
   return (
@@ -73,18 +84,64 @@ export const CreateTeam: React.FC = () => {
       </div>
 
       <div className="space-y-8">
-        {/* Step 1: Select Characters */}
+        {/* Step 1: Select Type */}
         <section className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold">
+            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
               1
             </div>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <Users className="w-5 h-5" />
+              <MessageCircle className="w-5 h-5" />
               {t('create.step1')}
             </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(['chat', 'debate', 'brainstorm', 'interview'] as TeamType[]).map((type) => (
+                <button
+                    key={type}
+                    onClick={() => setTeamType(type)}
+                    className={cn(
+                        "flex items-start gap-4 p-4 rounded-xl border-2 transition-all text-left",
+                        teamType === type
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                            : "border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    )}
+                >
+                    <div className={cn(
+                        "p-3 rounded-full shrink-0",
+                        teamType === type ? "bg-blue-100 text-blue-600" : "bg-slate-100 dark:bg-slate-700 text-slate-500"
+                    )}>
+                        {getTypeIcon(type)}
+                    </div>
+                    <div>
+                        <h3 className={cn(
+                            "font-semibold mb-1",
+                            teamType === type ? "text-blue-700 dark:text-blue-300" : "text-slate-900 dark:text-white"
+                        )}>
+                            {t(`create.type.${type}`)}
+                        </h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            {t(`create.type.${type}Desc`)}
+                        </p>
+                    </div>
+                </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Step 2: Select Characters */}
+        <section className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold">
+              2
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              {t('create.step2')}
+            </h2>
             <span className="ml-auto text-sm font-medium text-slate-500">
-              {t('create.selected')}: {selectedIds.length}/3
+              {t('create.selected')}: {selectedIds.length}/4
             </span>
           </div>
 
@@ -143,15 +200,15 @@ export const CreateTeam: React.FC = () => {
           </div>
         </section>
 
-        {/* Step 2: Enter Topic */}
+        {/* Step 3: Enter Topic */}
         <section className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold">
-              2
+            <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 font-bold">
+              3
             </div>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
-              {t('create.step2')}
+              {t('create.step3')}
             </h2>
           </div>
 

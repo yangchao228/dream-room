@@ -19,13 +19,24 @@
   },
   "create": {
     "title": "组建你的团队",
-    "step1": "1. 选择角色 (2-3人)",
-    "step2": "2. 定义话题",
+    "step1": "1. 选择圆桌类型",
+    "step2": "2. 选择角色 (2-4人)",
+    "step3": "3. 定义话题",
+    "type": {
+      "chat": "观点讨论",
+      "chatDesc": "深度解析，多维度观点碰撞，从对立到共识",
+      "debate": "观点辩论",
+      "debateDesc": "正反双方激烈交锋，主持人控场",
+      "brainstorm": "头脑风暴",
+      "brainstormDesc": "集思广益，激发创意灵感",
+      "interview": "深度访谈",
+      "interviewDesc": "针对特定话题进行深入问答"
+    },
     "topicPlaceholder": "例如：AI 会毁灭人类吗？",
     "start": "开始圆桌会议",
     "selected": "已选",
     "error": {
-      "selectChars": "请选择 2 到 3 个角色。",
+      "selectChars": "请选择 2 到 4 个角色。",
       "enterTopic": "请输入讨论话题。"
     },
     "myCharacters": "我的角色",
@@ -81,12 +92,19 @@
     "systemIntro": "今天我们讨论的话题是：{{topic}}",
     "hostName": "主持人",
     "hostIntro": "大家好，我是本次圆桌会议的主持人。今天我们非常荣幸邀请到了各位嘉宾。我们要探讨的话题是：“{{topic}}”。期待大家的精彩发言！",
+    "opinionIntro": "今天的圆桌问题是：{{topic}}。四位角色将从完全不同的立场展开讨论。",
+    "opinionStatementsIntro": "最后，请每位嘉宾用一句话总结自己的立场。",
+    "opinionSummaryPlaceholder": "讨论结束。基于各位的观点，我们看到了不同的维度...",
     "hostRoundRobinStart": "让我们先听听每位嘉宾的看法。请简要陈述您的立场。",
     "back": "返回首页",
     "thinking": "思考中...",
     "autoScrollOn": "自动滚动：开",
     "autoScrollOff": "自动滚动：关",
-    "scrollToBottom": "滚动到底部"
+    "scrollToBottom": "滚动到底部",
+    "reset": "重置圆桌",
+    "resetTitle": "重置圆桌会议",
+    "resetConfirm": "您确定要重置吗？这将清空所有聊天记录并重新开始讨论。",
+    "resetConfirmBtn": "重置"
   },
   "myCharacters": {
     "title": "我的 AI 角色",
@@ -98,6 +116,8 @@
     "edit": "编辑",
     "delete": "删除",
     "cancel": "取消",
-    "confirm": "确认"
+    "confirm": "确认",
+    "duplicate": "复制",
+    "reset": "重置"
   }
 }

@@ -19,13 +19,24 @@
   },
   "create": {
     "title": "Assemble Your Team",
-    "step1": "1. Select Characters (2-3)",
-    "step2": "2. Define Topic",
+    "step1": "1. Select Roundtable Type",
+    "step2": "2. Select Characters (2-4)",
+    "step3": "3. Define Topic",
+    "type": {
+      "chat": "Opinion Discussion",
+      "chatDesc": "Deep analysis, multi-dimensional clash, from opposition to consensus",
+      "debate": "Debate",
+      "debateDesc": "Pro vs Con, moderated by Host",
+      "brainstorm": "Brainstorming",
+      "brainstormDesc": "Generate creative ideas together",
+      "interview": "Interview",
+      "interviewDesc": "Deep dive Q&A on a specific topic"
+    },
     "topicPlaceholder": "e.g., Will AI replace humans?",
     "start": "Start Roundtable",
     "selected": "Selected",
     "error": {
-      "selectChars": "Please select 2 or 3 characters.",
+      "selectChars": "Please select 2 or 4 characters.",
       "enterTopic": "Please enter a discussion topic."
     },
     "myCharacters": "My Characters",
@@ -81,12 +92,19 @@
     "systemIntro": "Today we are discussing: {{topic}}",
     "hostName": "Host",
     "hostIntro": "Hello everyone, I am your host. We are honored to have you here. Today's topic is: \"{{topic}}\". I look forward to your insights!",
+    "opinionIntro": "Today's roundtable topic is: {{topic}}. Four characters will discuss this from completely different standpoints.",
+    "opinionStatementsIntro": "Finally, I'd like each guest to summarize their position in one sentence.",
+    "opinionSummaryPlaceholder": "Discussion concluded. Based on your views, we see different dimensions...",
     "hostRoundRobinStart": "Let's start by hearing from each of you. Please briefly state your position.",
     "back": "Back to Home",
     "thinking": "Thinking...",
     "autoScrollOn": "Auto-scroll: On",
     "autoScrollOff": "Auto-scroll: Off",
-    "scrollToBottom": "Scroll to Bottom"
+    "scrollToBottom": "Scroll to Bottom",
+    "reset": "Reset Roundtable",
+    "resetTitle": "Reset Roundtable",
+    "resetConfirm": "Are you sure you want to reset? This will clear all messages and restart the discussion.",
+    "resetConfirmBtn": "Reset"
   },
   "myCharacters": {
     "title": "My AI Characters",
@@ -98,6 +116,8 @@
     "edit": "Edit",
     "delete": "Delete",
     "cancel": "Cancel",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "duplicate": "Duplicate",
+    "reset": "Reset"
   }
 }

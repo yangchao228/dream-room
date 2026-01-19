@@ -1,17 +1,31 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Send, Loader2, ChevronDown, Lock, Unlock } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, ChevronDown, Lock, Unlock, RefreshCw } from 'lucide-react';
 import { Team, Message, Character } from '../types';
 import { storage } from '../utils/storage';
 import { getCharacterById } from '../data/characters';
 import { ChatBubble } from '../components/ChatBubble';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { cn } from '../utils/cn';
 import i18nInstance from '../i18n';
 import { llmService, ChatMessage } from '../services/llm';
 
 // New types for meeting flow
-type MeetingPhase = 'intro' | 'round_robin' | 'debate' | 'closing';
+type MeetingPhase = 
+  | 'intro' 
+  | 'round_robin' 
+  | 'debate' 
+  | 'closing'
+  // Opinion Discussion Phases
+  | 'opinion_pioneer'
+  | 'opinion_rational'
+  | 'opinion_realist'
+  | 'opinion_rebuttal'
+  | 'opinion_followup'
+  | 'opinion_converge'
+  | 'opinion_statements'
+  | 'opinion_summary';
 
 export const ChatRoom: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
@@ -23,7 +37,7 @@ export const ChatRoom: React.FC = () => {
   
   // Meeting State
   const [phase, setPhase] = useState<MeetingPhase>('intro');
-  const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null);
+  // const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null); // Kept for potential UI highlighting
   const [roundRobinIndex, setRoundRobinIndex] = useState(0);
 
   // Thinking state for AI characters
@@ -33,6 +47,7 @@ export const ChatRoom: React.FC = () => {
   // Auto-scroll state
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   // Refs for simulation loop
   const messagesRef = useRef<Message[]>([]);
@@ -99,57 +114,25 @@ export const ChatRoom: React.FC = () => {
     // Load existing messages or start new
     const existingMessages = storage.getMessages(teamId);
     if (existingMessages.length > 0) {
-      // Clean up potential duplicate host messages from Strict Mode double-invoke
-      const uniqueMessages = existingMessages.filter((msg, index, self) => {
-        if (msg.sender !== 'system' && typeof msg.sender !== 'string' && msg.sender.id === 'host') {
-           const firstHostIndex = self.findIndex(m => m.sender !== 'system' && typeof m.sender !== 'string' && m.sender.id === 'host');
-           return index === firstHostIndex;
-        }
-        return true;
-      });
-      
-      setMessages(uniqueMessages);
+      setMessages(existingMessages);
       // Determine phase based on message history length as a heuristic if rejoining
       // Simple heuristic: if > 2 messages per character + host, maybe in debate
       // For now, reset to intro or just assume free flow if returning
       // Let's just default to 'debate' if returning to an active room to allow free flow
-      if (uniqueMessages.length > 3) {
+      if (existingMessages.length > 3) {
           setPhase('debate');
           phaseRef.current = 'debate';
       }
     } else {
       // Start with Host message
-      const hostCharacter: Character = {
-        id: 'host',
-        name: t('chat.hostName', 'Host'),
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
-        tag: 'Host',
-        description: 'Roundtable Host',
-        personality: 'neutral',
-        phrases: [],
-        isCustom: false,
-        color: 'border-blue-500'
-      };
-
-      // We need to resolve the translation key before adding to message state
-      // The t() function returns the translated string, so t('chat.hostIntro', ...) is correct
-      // But if 'chat.hostIntro' is not found, it returns the key.
-      // Make sure i18n is initialized.
-      
-      const hostMsg: Message = {
-        id: crypto.randomUUID(),
-        sender: hostCharacter,
-        content: t('chat.hostIntro', { topic: foundTeam.topic }),
-        timestamp: Date.now()
-      };
-      addMessage(hostMsg, teamId);
+      // User is now the Host, so we don't auto-generate the host intro.
+      // But we initialize the phase.
       
       // Initialize flow - explicitly set phase to intro if creating new session
       setPhase('intro');
       phaseRef.current = 'intro';
       
-      // Force start simulation after a short delay to ensure Host message is rendered
-      // and state is settled.
+      // Force start simulation after a short delay
     }
 
     // Start simulation
@@ -223,7 +206,7 @@ export const ChatRoom: React.FC = () => {
     return phraseTemplate.replace(/{topic}/g, topic);
   };
 
-  const generateAIResponse = async (character: Character, topic: string, history: Message[]) => {
+  const generateAIResponse = async (character: Character, topic: string, history: Message[], phaseOverride?: MeetingPhase) => {
     if (!character.modelConfig) return '...';
 
     const recentHistory = history.slice(-15); // Increased context window
@@ -241,7 +224,7 @@ export const ChatRoom: React.FC = () => {
     });
 
     // Add context system prompt
-    const currentPhase = phaseRef.current;
+    const currentPhase = phaseOverride || phaseRef.current;
     let phaseInstruction = '';
     
     if (currentPhase === 'round_robin') {
@@ -253,6 +236,41 @@ export const ChatRoom: React.FC = () => {
         React to the previous speaker if relevant, or advance your own viewpoint. 
         Keep the discussion lively but stay in character. 
         Your character description: ${character.description || character.tag}.`;
+    } 
+    // Opinion Discussion Prompts
+    else if (currentPhase === 'opinion_pioneer') {
+        phaseInstruction = `You are ${character.name}. Your core character description is: "${character.description || character.tag}".
+        Current Role: You are acting as 'The Pioneer' in this discussion.
+        Task: Make a simple, extreme judgment on the topic "${topic}" that creates tension. Be bold and provocative.
+        Instruction: Combine your character's personality with the Pioneer's boldness.`;
+    } else if (currentPhase === 'opinion_rational') {
+        phaseInstruction = `You are ${character.name}. Your core character description is: "${character.description || character.tag}".
+        Current Role: You are acting as 'The Rationalist'.
+        Task: Point out the uncertainty, conditions, or probabilities in the previous judgment on "${topic}". Identify logic gaps.
+        Instruction: Use your character's logical faculties to analyze the situation.`;
+    } else if (currentPhase === 'opinion_realist') {
+        phaseInstruction = `You are ${character.name}. Your core character description is: "${character.description || character.tag}".
+        Current Role: You are acting as 'The Realist'.
+        Task: Bring the discussion on "${topic}" back to reality. Mention costs, practical difficulties, or the perspective of ordinary people.
+        Instruction: Ground the discussion through the lens of your character's practical experience.`;
+    } else if (currentPhase === 'opinion_rebuttal') {
+        phaseInstruction = `You are ${character.name}. Your core character description is: "${character.description || character.tag}".
+        Current Role: 'The Pioneer' (Rebuttal).
+        Task: Respond to criticism. Reinforce your stance on "${topic}" with attitude. Frame the risk as an opportunity.
+        Instruction: Defend your position using your character's voice.`;
+    } else if (currentPhase === 'opinion_followup') {
+        phaseInstruction = `You are ${character.name}. Your core character description is: "${character.description || character.tag}".
+        Current Role: 'The Rationalist' (Follow-up).
+        Task: Calm things down. Point out survivorship bias or boundary conditions regarding "${topic}".
+        Instruction: Maintain your character's analytical demeanor.`;
+    } else if (currentPhase === 'opinion_converge') {
+        phaseInstruction = `You are ${character.name}. Your core character description is: "${character.description || character.tag}".
+        Current Role: 'The Converger'.
+        Task: Identify the root cause of the disagreement on "${topic}" (e.g., risk tolerance, stage of life). Do not give a conclusion, just summarize the conflict dimensions.
+        Instruction: Use your character's wisdom to synthesize the viewpoints.`;
+    } else if (currentPhase === 'opinion_statements') {
+        phaseInstruction = `You are ${character.name}. Your core character description is: "${character.description || character.tag}".
+        Task: Give a one-sentence closing statement on your position regarding "${topic}". Make it memorable.`;
     }
 
     if (chatMessages.length === 0 || chatMessages[0].role !== 'system') {
@@ -271,6 +289,8 @@ export const ChatRoom: React.FC = () => {
     }
   };
   
+  // Unused host response generator commented out for now to satisfy linter
+  /*
   const generateHostResponse = async (topic: string, history: Message[], nextSpeakerName?: string) => {
       // Host is simulated by simple logic or a lightweight model call if we had one.
       // For now, we'll use a simple logic or assume Host is "System" for simplicity, 
@@ -286,6 +306,58 @@ export const ChatRoom: React.FC = () => {
       }
       
       return "Interesting point. Who would like to respond?";
+  };
+  */
+
+  const handleReset = () => {
+    if (!team) return;
+    
+    stopSimulation();
+    setMessages([]);
+    storage.saveMessages(team.id, []);
+    
+    // Reset flow state
+    setPhase('intro');
+    phaseRef.current = 'intro';
+    setRoundRobinIndex(0);
+    roundRobinIndexRef.current = 0;
+    nextSpeakerIdRef.current = null;
+    
+    // Re-initialize host intro after short delay
+    setTimeout(() => {
+        // Start with Host message
+        const hostCharacter: Character = {
+            id: 'host',
+            name: t('chat.hostName', 'Host'),
+            avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
+            tag: 'Host',
+            description: 'Roundtable Host',
+            personality: 'custom',
+            phrases: [],
+            isCustom: false,
+            color: 'border-blue-500'
+        };
+
+        const hostMsg: Message = {
+            id: crypto.randomUUID(),
+            sender: hostCharacter,
+            content: team.type === 'chat' 
+                ? t('chat.opinionIntro', { topic: team.topic }) 
+                : t('chat.hostIntro', { topic: team.topic }),
+            timestamp: Date.now()
+        };
+        addMessage(hostMsg, team.id);
+        
+        // For opinion flow, jump straight to pioneer
+        if (team.type === 'chat') {
+            setPhase('opinion_pioneer');
+            phaseRef.current = 'opinion_pioneer';
+        }
+        
+        startSimulation();
+    }, 500);
+    
+    setShowResetConfirm(false);
   };
 
   const startSimulation = () => {
@@ -311,6 +383,13 @@ export const ChatRoom: React.FC = () => {
       
       // --- MEETING FLOW LOGIC ---
       
+      // Handle 'chat' mode (opinion discussion) specifically
+      if (currentTeam.type === 'chat') {
+          await handleOpinionDiscussionFlow(currentTeam, characters);
+          return;
+      }
+      
+      // Default Flow (Debate/Others)
       // 1. INTRO PHASE: Host just spoke (in useEffect). Transition to Round Robin.
       if (phaseRef.current === 'intro') {
           setPhase('round_robin');
@@ -341,26 +420,7 @@ export const ChatRoom: React.FC = () => {
               setPhase('debate');
               phaseRef.current = 'debate';
               
-              // Host announces debate start
-              const hostCharacter: Character = {
-                id: 'host',
-                name: t('chat.hostName', 'Host'),
-                avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
-                tag: 'Host',
-                description: 'Roundtable Host',
-                personality: 'neutral',
-                phrases: [],
-                isCustom: false,
-                color: 'border-blue-500'
-              };
-              
-              const hostMsg: Message = {
-                  id: crypto.randomUUID(),
-                  sender: hostCharacter,
-                  content: "Thank you everyone for your opening statements. Now let's open the floor for free discussion. Feel free to respond to each other.",
-                  timestamp: Date.now()
-              };
-              addMessage(hostMsg, currentTeam.id);
+              // Host announces debate start -> Removed as User is Host
               
               scheduleNextTurn();
           }
@@ -405,13 +465,140 @@ export const ChatRoom: React.FC = () => {
     }, 2000); // 2s interval between turns
   };
   
-  const processSpeakerTurn = async (speaker: Character, currentTeam: Team) => {
+  const handleOpinionDiscussionFlow = async (currentTeam: Team, characters: Character[]) => {
+      // Check for forced speaker override (e.g. from Mention)
+      if (nextSpeakerIdRef.current) {
+          const forcedSpeaker = characters.find(c => c.id === nextSpeakerIdRef.current);
+          if (forcedSpeaker) {
+              // We pause the state machine for one turn to let the mentioned character respond
+              // We pass 'debate' phase override to prompt so they respond naturally to user
+              await processSpeakerTurn(forcedSpeaker, currentTeam, 'debate'); 
+              nextSpeakerIdRef.current = null;
+              scheduleNextTurn();
+              return;
+          }
+      }
+
+      // Step 0: Intro (Handled by initialization, but we transition to Pioneer)
+      if (phaseRef.current === 'intro') {
+          // Host already spoke the general intro. 
+          // Host explicitly sets the stage for 4 roles -> Removed auto host message
+          
+          setPhase('opinion_pioneer');
+          phaseRef.current = 'opinion_pioneer';
+          scheduleNextTurn();
+          return;
+      }
+
+      // Helper to find a character by role index (modulo if < 4)
+      const getCharacterByRole = (roleIndex: number) => characters[roleIndex % characters.length];
+
+      // Step 1: Pioneer (Role 0)
+      if (phaseRef.current === 'opinion_pioneer') {
+          const speaker = getCharacterByRole(0);
+          await processSpeakerTurn(speaker, currentTeam, 'opinion_pioneer');
+          setPhase('opinion_rational');
+          phaseRef.current = 'opinion_rational';
+          scheduleNextTurn();
+          return;
+      }
+
+      // Step 2: Rationalist (Role 1)
+      if (phaseRef.current === 'opinion_rational') {
+          const speaker = getCharacterByRole(1);
+          await processSpeakerTurn(speaker, currentTeam, 'opinion_rational');
+          setPhase('opinion_realist');
+          phaseRef.current = 'opinion_realist';
+          scheduleNextTurn();
+          return;
+      }
+
+      // Step 3: Realist (Role 2)
+      if (phaseRef.current === 'opinion_realist') {
+          const speaker = getCharacterByRole(2);
+          await processSpeakerTurn(speaker, currentTeam, 'opinion_realist');
+          setPhase('opinion_rebuttal');
+          phaseRef.current = 'opinion_rebuttal';
+          scheduleNextTurn();
+          return;
+      }
+
+      // Step 4: Pioneer Rebuttal (Role 0)
+      if (phaseRef.current === 'opinion_rebuttal') {
+          const speaker = getCharacterByRole(0);
+          await processSpeakerTurn(speaker, currentTeam, 'opinion_rebuttal');
+          setPhase('opinion_followup');
+          phaseRef.current = 'opinion_followup';
+          scheduleNextTurn();
+          return;
+      }
+
+      // Step 5: Rationalist Follow-up (Role 1)
+      if (phaseRef.current === 'opinion_followup') {
+          const speaker = getCharacterByRole(1);
+          await processSpeakerTurn(speaker, currentTeam, 'opinion_followup');
+          setPhase('opinion_converge');
+          phaseRef.current = 'opinion_converge';
+          scheduleNextTurn();
+          return;
+      }
+
+      // Step 6: Converger (Role 3, or Role 2 if only 3 chars)
+      if (phaseRef.current === 'opinion_converge') {
+          const speaker = getCharacterByRole(3); // Might wrap to 0 if only 3 chars, ideally Role 3
+          await processSpeakerTurn(speaker, currentTeam, 'opinion_converge');
+          
+          setPhase('opinion_statements');
+          phaseRef.current = 'opinion_statements';
+          
+          // Host announces Closing Statements
+          // Wait a bit before host speaks to let previous msg settle? 
+          // Actually, let's inject host message right away but scheduled
+          
+          setTimeout(() => {
+              // Removed Auto Host Message
+              
+              setRoundRobinIndex(0);
+              roundRobinIndexRef.current = 0;
+              scheduleNextTurn();
+          }, 1000);
+          
+          return;
+      }
+
+      // Step 7: Position Statements (Round Robin)
+      if (phaseRef.current === 'opinion_statements') {
+          const idx = roundRobinIndexRef.current;
+          if (idx < characters.length) {
+              const speaker = characters[idx];
+              await processSpeakerTurn(speaker, currentTeam, 'opinion_statements');
+              setRoundRobinIndex(prev => prev + 1);
+              roundRobinIndexRef.current += 1;
+              scheduleNextTurn();
+          } else {
+              setPhase('opinion_summary');
+              phaseRef.current = 'opinion_summary';
+              scheduleNextTurn();
+          }
+          return;
+      }
+
+      // Step 8: System Summary (Host)
+      if (phaseRef.current === 'opinion_summary') {
+          // Trigger Host Summary Generation
+          // For now static, ideally dynamic
+          // Removed Auto Host Message
+          // End flow
+      }
+  };
+
+  const processSpeakerTurn = async (speaker: Character, currentTeam: Team, currentPhaseOverride?: MeetingPhase) => {
       if (speaker.provider === 'ai' && speaker.modelConfig) {
         setIsThinking(true);
         setThinkingCharacter(speaker);
         stopSimulation();
         
-        const text = await generateAIResponse(speaker, currentTeam.topic, messagesRef.current);
+        const text = await generateAIResponse(speaker, currentTeam.topic, messagesRef.current, currentPhaseOverride);
         
         setIsThinking(false);
         setThinkingCharacter(null);
@@ -450,16 +637,46 @@ export const ChatRoom: React.FC = () => {
     const mentionedCharacter = team.characters.find(c => inputText.includes(`@${c.name}`));
     if (mentionedCharacter) {
       nextSpeakerIdRef.current = mentionedCharacter.id;
-      // Force switch to debate phase to allow immediate response if not already
-      if (phaseRef.current !== 'debate') {
-          setPhase('debate');
-          phaseRef.current = 'debate';
+      // Force switch to debate phase OR specific opinion phase to allow immediate response
+      if (team.type === 'chat') {
+           // For opinion flow, we might need a specific 'interrupt' handling or just let it slide into next step
+           // But since opinion flow is strict steps, forcing a speaker might break the 'Role' logic (e.g. Pioneer vs Rationalist)
+           // HOWEVER, user wants them to answer.
+           // Let's keep the phase but force the speaker in the NEXT turn logic.
+           // The scheduleNextTurn logic for opinion flow relies on phase to pick speaker.
+           // We need to override that.
+           
+           // Actually, opinion flow logic (handleOpinionDiscussionFlow) strictly picks speaker based on phase.
+           // To support mentions, we might need to temporarily switch to a 'user_response' phase or similar, 
+           // OR we just hack it by letting the mentioned character speak "out of turn" and then resume?
+           
+           // Simpler approach for now: If mentioned in opinion flow, we just force them to speak 
+           // but we need to handle the state machine.
+           // Let's make a special check in scheduleNextTurn.
+      } else {
+          // For standard debate
+          if (phaseRef.current !== 'debate') {
+              setPhase('debate');
+              phaseRef.current = 'debate';
+          }
       }
     }
 
+    const hostCharacter: Character = {
+        id: 'host',
+        name: t('chat.hostName', 'Host'),
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
+        tag: 'Host',
+        description: 'Roundtable Host',
+        personality: 'custom',
+        phrases: [],
+        isCustom: false,
+        color: 'border-blue-500'
+    };
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
-      sender: 'user',
+      sender: hostCharacter,
       content: inputText,
       timestamp: Date.now()
     };
@@ -504,77 +721,125 @@ export const ChatRoom: React.FC = () => {
              {phase === 'intro' && <span className="ml-1 px-1 bg-blue-100 text-blue-700 rounded text-[10px]">Intro</span>}
              {phase === 'round_robin' && <span className="ml-1 px-1 bg-purple-100 text-purple-700 rounded text-[10px]">Statements</span>}
              {phase === 'debate' && <span className="ml-1 px-1 bg-orange-100 text-orange-700 rounded text-[10px]">Debate</span>}
+             {phase.startsWith('opinion') && <span className="ml-1 px-1 bg-indigo-100 text-indigo-700 rounded text-[10px]">Opinion Flow</span>}
           </div>
         </div>
         
-        <button
-          onClick={toggleAutoScroll}
-          className={cn(
-            "p-2 rounded-full transition-colors",
-            isAutoScrollEnabled 
-              ? "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" 
-              : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-          )}
-          title={isAutoScrollEnabled ? t('chat.autoScrollOn', 'Auto-scroll On') : t('chat.autoScrollOff', 'Auto-scroll Off')}
-        >
-          {isAutoScrollEnabled ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-        </button>
+        <div className="flex gap-2">
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="p-2 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={t('chat.reset', 'Reset Roundtable')}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            
+            <button
+              onClick={toggleAutoScroll}
+              className={cn(
+                "p-2 rounded-full transition-colors",
+                isAutoScrollEnabled 
+                  ? "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" 
+                  : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              )}
+              title={isAutoScrollEnabled ? t('chat.autoScrollOn', 'Auto-scroll On') : t('chat.autoScrollOff', 'Auto-scroll Off')}
+            >
+              {isAutoScrollEnabled ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+            </button>
+        </div>
       </div>
 
-      {/* Chat Area */}
-      <div 
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 pt-20 pb-4 scroll-smooth space-y-4 bg-slate-50 dark:bg-slate-950/50 relative"
-      >
-        {/* Participants Bar */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        onCancel={() => setShowResetConfirm(false)}
+        onConfirm={handleReset}
+        title={t('chat.resetTitle', 'Reset Roundtable')}
+        message={t('chat.resetConfirm', 'Are you sure you want to reset? This will clear all messages and restart the discussion.')}
+        confirmText={t('chat.resetConfirmBtn', 'Reset')}
+      />
+
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Participants Sidebar (Desktop) */}
+        <div className="hidden md:flex w-24 flex-col gap-3 overflow-y-auto pt-20 pb-4 px-2 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 no-scrollbar items-center flex-shrink-0">
           {team.characters.map((char) => (
             <button
               key={char.id}
               onClick={() => handleMentionClick(char.name)}
-              className="flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+              className="flex flex-col items-center gap-1 p-2 w-full hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all group"
+              title={char.name}
             >
-              <img 
-                src={char.avatar} 
-                alt={char.name} 
-                className={cn("w-5 h-5 rounded-full object-cover border", char.color)}
-              />
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              <div className={cn(
+                "w-12 h-12 rounded-full p-0.5 border-2 transition-transform group-hover:scale-105", 
+                char.color
+              )}>
+                <img 
+                  src={char.avatar} 
+                  alt={char.name} 
+                  className="w-full h-full rounded-full object-cover"
+                />
+              </div>
+              <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400 text-center line-clamp-2 w-full leading-tight">
                 {char.name}
               </span>
             </button>
           ))}
         </div>
 
-        {messages.map((msg) => (
-          <ChatBubble key={msg.id} message={msg} />
-        ))}
-        
-        {isThinking && thinkingCharacter && (
-          <div className="flex justify-start mb-4 animate-in fade-in slide-in-from-bottom-2">
-             <div className="flex items-end gap-2 max-w-[80%]">
-               <div className={cn(
-                  "w-8 h-8 rounded-full border-2 flex-shrink-0 bg-slate-200 dark:bg-slate-800",
-                  thinkingCharacter.color || "border-slate-200"
-               )}>
-                  <img 
-                    src={thinkingCharacter.avatar} 
-                    alt={thinkingCharacter.name}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-               </div>
-               <div className="p-3 rounded-2xl rounded-bl-none bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{t('chat.thinking')}</span>
-                  </div>
-               </div>
-             </div>
+        {/* Chat Area */}
+        <div 
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 pt-20 pb-4 scroll-smooth space-y-4 bg-slate-50 dark:bg-slate-950/50 relative"
+        >
+          {/* Participants Bar (Mobile) */}
+          <div className="md:hidden flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
+            {team.characters.map((char) => (
+              <button
+                key={char.id}
+                onClick={() => handleMentionClick(char.name)}
+                className="flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+              >
+                <img 
+                  src={char.avatar} 
+                  alt={char.name} 
+                  className={cn("w-5 h-5 rounded-full object-cover border", char.color)}
+                />
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                  {char.name}
+                </span>
+              </button>
+            ))}
           </div>
-        )}
-        
-        <div className="h-4"></div>
+
+          {messages.map((msg) => (
+            <ChatBubble key={msg.id} message={msg} />
+          ))}
+          
+          {isThinking && thinkingCharacter && (
+            <div className="flex justify-start mb-4 animate-in fade-in slide-in-from-bottom-2">
+               <div className="flex items-end gap-2 max-w-[80%]">
+                 <div className={cn(
+                    "w-8 h-8 rounded-full border-2 flex-shrink-0 bg-slate-200 dark:bg-slate-800",
+                    thinkingCharacter.color || "border-slate-200"
+                 )}>
+                    <img 
+                      src={thinkingCharacter.avatar} 
+                      alt={thinkingCharacter.name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                 </div>
+                 <div className="p-3 rounded-2xl rounded-bl-none bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{t('chat.thinking')}</span>
+                    </div>
+                 </div>
+               </div>
+            </div>
+          )}
+          
+          <div className="h-4"></div>
+        </div>
       </div>
 
       {showScrollButton && (

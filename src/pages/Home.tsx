@@ -12,6 +12,7 @@ export const Home: React.FC = () => {
   const navigate = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
+  const [teamToReset, setTeamToReset] = useState<string | null>(null);
 
   useEffect(() => {
     setTeams(storage.getTeams());
@@ -21,11 +22,34 @@ export const Home: React.FC = () => {
     setTeamToDelete(id);
   };
 
+  const handleResetClick = (id: string) => {
+    setTeamToReset(id);
+  };
+
+  const handleDuplicate = (team: Team) => {
+    const newTeam: Team = {
+        ...team,
+        id: crypto.randomUUID(),
+        name: `${team.name} (Copy)`,
+        createdAt: Date.now()
+    };
+    storage.saveTeam(newTeam);
+    setTeams(storage.getTeams());
+  };
+
   const handleConfirmDelete = () => {
     if (teamToDelete) {
       storage.deleteTeam(teamToDelete);
       setTeams(storage.getTeams());
       setTeamToDelete(null);
+    }
+  };
+
+  const handleConfirmReset = () => {
+    if (teamToReset) {
+        storage.saveMessages(teamToReset, []);
+        setTeamToReset(null);
+        // Optional: Show toast notification
     }
   };
 
@@ -84,6 +108,8 @@ export const Home: React.FC = () => {
               key={team.id} 
               team={team} 
               onDelete={handleDeleteClick}
+              onDuplicate={handleDuplicate}
+              onReset={handleResetClick}
             />
           ))}
         </div>
@@ -96,6 +122,16 @@ export const Home: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setTeamToDelete(null)}
         type="danger"
+      />
+      
+      <ConfirmDialog
+        isOpen={!!teamToReset}
+        title={t('chat.resetTitle', 'Reset Roundtable')}
+        message={t('chat.resetConfirm', 'Are you sure you want to reset? This will clear all messages.')}
+        onConfirm={handleConfirmReset}
+        onCancel={() => setTeamToReset(null)}
+        confirmText={t('chat.resetConfirmBtn', 'Reset')}
+        type="warning"
       />
     </div>
   );

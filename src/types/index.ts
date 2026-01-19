@@ -35,10 +35,13 @@ export interface Character {
   createdAt?: number;
 }
 
+export type TeamType = 'chat' | 'debate' | 'brainstorm' | 'interview';
+
 export interface Team {
   id: string;
   name: string;
   topic: string;
+  type?: TeamType; // Optional for backward compatibility
   characters: Character[];
   createdAt: number;
 }

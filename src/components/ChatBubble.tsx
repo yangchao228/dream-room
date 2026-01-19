@@ -10,7 +10,8 @@ interface ChatBubbleProps {
 
 export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const { i18n } = useTranslation();
-  const isUser = message.sender === 'user';
+  const isHost = typeof message.sender !== 'string' && message.sender.id === 'host';
+  const isUser = message.sender === 'user' || isHost;
   const isSystem = message.sender === 'system';
   const character = !isUser && !isSystem ? (message.sender as Character) : null;
   
@@ -63,9 +64,17 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
 
       {isUser && (
         <div className="flex-shrink-0 ml-3">
-           <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-             <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Me</span>
-           </div>
+           {isHost ? (
+             <img 
+               src={(message.sender as Character).avatar} 
+               alt={(message.sender as Character).name}
+               className={cn("w-10 h-10 rounded-full object-cover border-2", (message.sender as Character).color)}
+             />
+           ) : (
+             <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+               <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Me</span>
+             </div>
+           )}
         </div>
       )}
     </div>
