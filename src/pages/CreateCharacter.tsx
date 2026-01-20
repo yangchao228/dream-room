@@ -26,7 +26,7 @@ const PROVIDER_DEFAULTS: Record<string, { endpoint: string; models: string[] }> 
   },
   zhipu: {
     endpoint: 'https://open.bigmodel.cn/api/paas/v4',
-    models: ['glm-4', 'glm-3-turbo']
+    models: ['glm-4', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-3-turbo']
   },
   bailian: {
     endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
@@ -64,6 +64,8 @@ export const CreateCharacter: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [isCustomModel, setIsCustomModel] = useState(false);
+
   // Load existing character if editing
   useEffect(() => {
     if (editId) {
@@ -89,6 +91,15 @@ export const CreateCharacter: React.FC = () => {
           if (config.provider === 'ollama') {
             setCustomModelName(config.model);
           }
+          
+          // Check if model is custom for cloud providers
+          if (config.provider !== 'ollama') {
+              const defaultModels = PROVIDER_DEFAULTS[config.provider]?.models || [];
+              if (!defaultModels.includes(config.model)) {
+                  setIsCustomModel(true);
+                  setCustomModelName(config.model);
+              }
+          }
         }
       }
     }
@@ -98,6 +109,7 @@ export const CreateCharacter: React.FC = () => {
   useEffect(() => {
     if (provider === 'ollama') {
       fetchOllamaModels();
+      setIsCustomModel(false);
     } else {
       // For other providers, set default endpoint if user hasn't customized it
       // or if switching between cloud providers
@@ -105,6 +117,8 @@ export const CreateCharacter: React.FC = () => {
          setApiEndpoint(PROVIDER_DEFAULTS[provider]?.endpoint || '');
          if (PROVIDER_DEFAULTS[provider]?.models.length > 0) {
              setModelName(PROVIDER_DEFAULTS[provider].models[0]);
+             setIsCustomModel(false);
+             setCustomModelName('');
          }
       } else {
          // Even in edit mode, if we switch provider manually, update defaults
@@ -114,6 +128,8 @@ export const CreateCharacter: React.FC = () => {
          setApiEndpoint(PROVIDER_DEFAULTS[provider]?.endpoint || '');
          if (PROVIDER_DEFAULTS[provider]?.models.length > 0) {
              setModelName(PROVIDER_DEFAULTS[provider].models[0]);
+             setIsCustomModel(false);
+             setCustomModelName('');
          }
       }
     }
@@ -172,7 +188,7 @@ export const CreateCharacter: React.FC = () => {
       createdAt: editId ? undefined : Date.now(), // Don't update createdAt on edit
       modelConfig: {
         provider,
-        model: provider === 'ollama' && customModelName ? customModelName : modelName,
+        model: isCustomModel && customModelName ? customModelName : modelName,
         apiEndpoint,
         apiKey: provider !== 'ollama' ? apiKey : undefined,
         temperature,
@@ -346,24 +362,53 @@ export const CreateCharacter: React.FC = () => {
               /* Cloud Providers (OpenAI Compatible) */
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    {t('character.model')}
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                        value={modelName}
-                        onChange={(e) => setModelName(e.target.value)}
-                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  <div className="flex justify-between mb-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        {t('character.model')}
+                    </label>
+                    <button
+                        onClick={() => {
+                            setIsCustomModel(!isCustomModel);
+                            if (!isCustomModel) {
+                                setCustomModelName(modelName);
+                            } else {
+                                setCustomModelName('');
+                                if (PROVIDER_DEFAULTS[provider]?.models.length > 0) {
+                                    setModelName(PROVIDER_DEFAULTS[provider].models[0]);
+                                }
+                            }
+                        }}
+                        className="text-xs text-blue-500 hover:text-blue-600 underline"
                     >
-                        {PROVIDER_DEFAULTS[provider]?.models.map(m => (
-                            <option key={m} value={m}>{m}</option>
-                        ))}
-                         {/* Fallback option if current model is not in list (e.g. custom input previously) */}
-                         {!PROVIDER_DEFAULTS[provider]?.models.includes(modelName) && (
-                             <option value={modelName}>{modelName}</option>
-                         )}
-                    </select>
-                   </div>
+                        {isCustomModel ? t('character.selectFromList', 'Select from list') : t('character.enterCustom', 'Enter custom model')}
+                    </button>
+                  </div>
+                  
+                  {isCustomModel ? (
+                      <input
+                        type="text"
+                        value={customModelName}
+                        onChange={(e) => setCustomModelName(e.target.value)}
+                        placeholder="e.g. glm-4-plus"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                  ) : (
+                      <div className="flex gap-2">
+                        <select
+                            value={modelName}
+                            onChange={(e) => setModelName(e.target.value)}
+                            className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            {PROVIDER_DEFAULTS[provider]?.models.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                            {/* Fallback option if current model is not in list (e.g. custom input previously) */}
+                            {!PROVIDER_DEFAULTS[provider]?.models.includes(modelName) && (
+                                <option value={modelName}>{modelName}</option>
+                            )}
+                        </select>
+                       </div>
+                   )}
                 </div>
 
                 <div>

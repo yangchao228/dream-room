@@ -40,6 +40,11 @@ export const ChatRoom: React.FC = () => {
   // const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null); // Kept for potential UI highlighting
   const [roundRobinIndex, setRoundRobinIndex] = useState(0);
 
+  const [showMentionList, setShowMentionList] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   // Thinking state for AI characters
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingCharacter, setThinkingCharacter] = useState<Character | null>(null);
@@ -77,6 +82,32 @@ export const ChatRoom: React.FC = () => {
   useEffect(() => {
     roundRobinIndexRef.current = roundRobinIndex;
   }, [roundRobinIndex]);
+
+  const createHostCharacter = (): Character => ({
+    id: 'host',
+    name: t('chat.hostName', 'Host'),
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
+    tag: 'Host',
+    description: 'Roundtable Host',
+    personality: 'custom',
+    phrases: [],
+    isCustom: false,
+    color: 'border-blue-500'
+  });
+
+  const createHostIntroMessage = (currentTeam: Team): Message => {
+    const hostCharacter = createHostCharacter();
+    const content = currentTeam.type === 'chat' 
+        ? t('chat.opinionIntro', { topic: currentTeam.topic }) 
+        : t('chat.hostIntro', { topic: currentTeam.topic });
+        
+    return {
+        id: crypto.randomUUID(),
+        sender: hostCharacter,
+        content: content,
+        timestamp: Date.now()
+    };
+  };
 
   // Initial Load
   useEffect(() => {
@@ -124,9 +155,9 @@ export const ChatRoom: React.FC = () => {
           phaseRef.current = 'debate';
       }
     } else {
-      // Start with Host message
-      // User is now the Host, so we don't auto-generate the host intro.
-      // But we initialize the phase.
+      // Start with Host message (Auto-generated on behalf of User)
+      const hostMsg = createHostIntroMessage(teamWithLiveCharacters);
+      addMessage(hostMsg, teamId);
       
       // Initialize flow - explicitly set phase to intro if creating new session
       setPhase('intro');
@@ -137,6 +168,7 @@ export const ChatRoom: React.FC = () => {
 
     // Start simulation
     // Use a slight delay to allow state updates to propagate
+    /* 
     const timerId = setTimeout(() => {
         startSimulation();
     }, 100);
@@ -145,7 +177,24 @@ export const ChatRoom: React.FC = () => {
         clearTimeout(timerId);
         stopSimulation();
     };
+    */
   }, [teamId, navigate]);
+
+  // Simulation Lifecycle Effect
+  useEffect(() => {
+    if (!team) return;
+
+    // Start simulation with a delay to ensure everything is ready
+    const timerId = setTimeout(() => {
+        console.log('Starting simulation loop...');
+        startSimulation();
+    }, 500);
+
+    return () => {
+        clearTimeout(timerId);
+        stopSimulation();
+    };
+  }, [team]);
 
   // Auto-scroll effect
   useEffect(() => {
@@ -276,7 +325,12 @@ export const ChatRoom: React.FC = () => {
     if (chatMessages.length === 0 || chatMessages[0].role !== 'system') {
       chatMessages.unshift({
         role: 'system',
-        content: `Current Topic: ${topic}. ${phaseInstruction}`
+        content: `Current Topic: ${topic}. ${phaseInstruction}
+        
+        System Rules (MUST FOLLOW):
+        1. Reply directly with your statement.
+        2. NEVER prefix your response with your name, role, or title (e.g., do NOT say "Name: ...", "Role: ...", "【Role】Name: ...").
+        3. Do not use Markdown formatting (no bold, italic, or headers). Output plain text only.`
       });
     }
 
@@ -322,30 +376,11 @@ export const ChatRoom: React.FC = () => {
     setRoundRobinIndex(0);
     roundRobinIndexRef.current = 0;
     nextSpeakerIdRef.current = null;
-    
+
     // Re-initialize host intro after short delay
     setTimeout(() => {
-        // Start with Host message
-        const hostCharacter: Character = {
-            id: 'host',
-            name: t('chat.hostName', 'Host'),
-            avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4',
-            tag: 'Host',
-            description: 'Roundtable Host',
-            personality: 'custom',
-            phrases: [],
-            isCustom: false,
-            color: 'border-blue-500'
-        };
-
-        const hostMsg: Message = {
-            id: crypto.randomUUID(),
-            sender: hostCharacter,
-            content: team.type === 'chat' 
-                ? t('chat.opinionIntro', { topic: team.topic }) 
-                : t('chat.hostIntro', { topic: team.topic }),
-            timestamp: Date.now()
-        };
+        // Start with Host message (Auto-generated on behalf of User)
+        const hostMsg = createHostIntroMessage(team);
         addMessage(hostMsg, team.id);
         
         // For opinion flow, jump straight to pioneer
@@ -375,8 +410,18 @@ export const ChatRoom: React.FC = () => {
   const scheduleNextTurn = () => {
     if (isThinking) return;
 
+    // Clear any existing timeout to prevent multiple loops
+    if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+    }
+
     timeoutRef.current = setTimeout(async () => {
-      if (!teamRef.current) return;
+      // Safety check: if team not loaded yet, retry shortly
+      if (!teamRef.current) {
+          console.warn('Team ref not ready in scheduleNextTurn, retrying...');
+          scheduleNextTurn();
+          return;
+      }
       
       const currentTeam = teamRef.current;
       const characters = currentTeam.characters;
@@ -481,12 +526,15 @@ export const ChatRoom: React.FC = () => {
 
       // Step 0: Intro (Handled by initialization, but we transition to Pioneer)
       if (phaseRef.current === 'intro') {
-          // Host already spoke the general intro. 
-          // Host explicitly sets the stage for 4 roles -> Removed auto host message
-          
           setPhase('opinion_pioneer');
           phaseRef.current = 'opinion_pioneer';
-          scheduleNextTurn();
+          
+          // Immediately schedule next turn with short delay to start Pioneer
+          // Use a shorter delay (500ms) instead of standard 2s to make it feel responsive
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => {
+             scheduleNextTurn();
+          }, 500);
           return;
       }
 
@@ -517,13 +565,15 @@ export const ChatRoom: React.FC = () => {
       if (phaseRef.current === 'opinion_realist') {
           const speaker = getCharacterByRole(2);
           await processSpeakerTurn(speaker, currentTeam, 'opinion_realist');
-          setPhase('opinion_rebuttal');
-          phaseRef.current = 'opinion_rebuttal';
+          // Skip Rebuttal (Role 0) and Follow-up (Role 1) to ensure strict joining order (0 -> 1 -> 2 -> 3)
+          setPhase('opinion_converge');
+          phaseRef.current = 'opinion_converge';
           scheduleNextTurn();
           return;
       }
 
-      // Step 4: Pioneer Rebuttal (Role 0)
+      /*
+      // Step 4: Pioneer Rebuttal (Role 0) - SKIPPED to maintain linear order
       if (phaseRef.current === 'opinion_rebuttal') {
           const speaker = getCharacterByRole(0);
           await processSpeakerTurn(speaker, currentTeam, 'opinion_rebuttal');
@@ -533,7 +583,7 @@ export const ChatRoom: React.FC = () => {
           return;
       }
 
-      // Step 5: Rationalist Follow-up (Role 1)
+      // Step 5: Rationalist Follow-up (Role 1) - SKIPPED to maintain linear order
       if (phaseRef.current === 'opinion_followup') {
           const speaker = getCharacterByRole(1);
           await processSpeakerTurn(speaker, currentTeam, 'opinion_followup');
@@ -542,6 +592,7 @@ export const ChatRoom: React.FC = () => {
           scheduleNextTurn();
           return;
       }
+      */
 
       // Step 6: Converger (Role 3, or Role 2 if only 3 chars)
       if (phaseRef.current === 'opinion_converge') {
@@ -623,8 +674,68 @@ export const ChatRoom: React.FC = () => {
       }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputText(newValue);
+
+    const cursor = e.target.selectionStart || 0;
+    setCursorPosition(cursor);
+
+    // Check for @ mention trigger
+    // Find the last @ before cursor
+    const textBeforeCursor = newValue.slice(0, cursor);
+    const lastAtSymbolIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtSymbolIndex !== -1) {
+      // Check if there is a space before @ or it is the start of string
+      const isStartOfWord = lastAtSymbolIndex === 0 || textBeforeCursor[lastAtSymbolIndex - 1] === ' ';
+      
+      if (isStartOfWord) {
+        // Get the text after @
+        const query = textBeforeCursor.slice(lastAtSymbolIndex + 1);
+        // Check if query contains space (meaning user continued typing another word)
+        if (!query.includes(' ')) {
+          setMentionFilter(query);
+          setShowMentionList(true);
+          return;
+        }
+      }
+    }
+    
+    setShowMentionList(false);
+  };
+
+  const handleSelectMention = (character: Character) => {
+    if (!inputRef.current) return;
+    
+    const cursor = cursorPosition;
+    const textBeforeCursor = inputText.slice(0, cursor);
+    const lastAtSymbolIndex = textBeforeCursor.lastIndexOf('@');
+    
+    const textAfterCursor = inputText.slice(cursor);
+    const newTextBeforeCursor = textBeforeCursor.slice(0, lastAtSymbolIndex) + `@${character.name} `;
+    
+    const newText = newTextBeforeCursor + textAfterCursor;
+    
+    setInputText(newText);
+    setShowMentionList(false);
+    
+    // Restore focus and set cursor position
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        // Move cursor to end of inserted name
+        const newCursorPos = newTextBeforeCursor.length;
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  };
+
   const handleMentionClick = (characterName: string) => {
     setInputText(prev => `${prev}@${characterName} `);
+    if (inputRef.current) {
+        inputRef.current.focus();
+    }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -717,11 +828,15 @@ export const ChatRoom: React.FC = () => {
           </h2>
           <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-             Live Roundtable
-             {phase === 'intro' && <span className="ml-1 px-1 bg-blue-100 text-blue-700 rounded text-[10px]">Intro</span>}
-             {phase === 'round_robin' && <span className="ml-1 px-1 bg-purple-100 text-purple-700 rounded text-[10px]">Statements</span>}
-             {phase === 'debate' && <span className="ml-1 px-1 bg-orange-100 text-orange-700 rounded text-[10px]">Debate</span>}
-             {phase.startsWith('opinion') && <span className="ml-1 px-1 bg-indigo-100 text-indigo-700 rounded text-[10px]">Opinion Flow</span>}
+             {team.type === 'chat' ? t('create.type.chat') : 
+              team.type === 'debate' ? t('create.type.debate') : 
+              team.type === 'brainstorm' ? t('create.type.brainstorm') : 
+              team.type === 'interview' ? t('create.type.interview') : 'Roundtable'}
+             <span className="mx-1 opacity-50">|</span>
+             {phase === 'intro' && <span className="px-1 bg-blue-100 text-blue-700 rounded text-[10px]">Intro</span>}
+             {phase === 'round_robin' && <span className="px-1 bg-purple-100 text-purple-700 rounded text-[10px]">Statements</span>}
+             {phase === 'debate' && <span className="px-1 bg-orange-100 text-orange-700 rounded text-[10px]">Debate</span>}
+             {phase.startsWith('opinion') && <span className="px-1 bg-indigo-100 text-indigo-700 rounded text-[10px]">Opinion Flow</span>}
           </div>
         </div>
         
@@ -761,6 +876,20 @@ export const ChatRoom: React.FC = () => {
       <div className="flex-1 flex overflow-hidden relative">
         {/* Participants Sidebar (Desktop) */}
         <div className="hidden md:flex w-24 flex-col gap-3 overflow-y-auto pt-20 pb-4 px-2 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 no-scrollbar items-center flex-shrink-0">
+          {/* Host (User) */}
+          <div className="flex flex-col items-center gap-1 p-2 w-full rounded-xl transition-all group">
+             <div className="w-12 h-12 rounded-full p-0.5 border-2 border-emerald-500 bg-slate-200 dark:bg-slate-700 flex items-center justify-center overflow-hidden">
+                <img 
+                   src="https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4" 
+                   alt={t('chat.hostName', 'Host')}
+                   className="w-full h-full object-cover"
+                />
+             </div>
+             <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400 text-center line-clamp-2 w-full leading-tight">
+                {t('chat.hostName', 'Host')}
+             </span>
+          </div>
+
           {team.characters.map((char) => (
             <button
               key={char.id}
@@ -793,6 +922,20 @@ export const ChatRoom: React.FC = () => {
         >
           {/* Participants Bar (Mobile) */}
           <div className="md:hidden flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
+            {/* Host (User) */}
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm flex-shrink-0">
+               <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center border border-emerald-500 overflow-hidden">
+                 <img 
+                    src="https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4" 
+                    alt={t('chat.hostName', 'Host')}
+                    className="w-full h-full object-cover"
+                 />
+               </div>
+               <span className="text-xs font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                 {t('chat.hostName', 'Host')}
+               </span>
+            </div>
+
             {team.characters.map((char) => (
               <button
                 key={char.id}
@@ -853,15 +996,57 @@ export const ChatRoom: React.FC = () => {
       )}
 
       {/* Input Area */}
-      <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+      <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 relative">
+        {/* Mention List Popup */}
+        {showMentionList && team && (
+           <div className="absolute bottom-full left-4 mb-2 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">
+             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+               Mention Member
+             </div>
+             <div className="max-h-48 overflow-y-auto">
+               {team.characters
+                 .filter(c => c.name.toLowerCase().includes(mentionFilter.toLowerCase()))
+                 .map(char => (
+                   <button
+                     key={char.id}
+                     onClick={() => handleSelectMention(char)}
+                     className="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors"
+                   >
+                     <img 
+                       src={char.avatar} 
+                       alt={char.name} 
+                       className={cn("w-6 h-6 rounded-full object-cover border", char.color)}
+                     />
+                     <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{char.name}</span>
+                   </button>
+                 ))
+               }
+               {team.characters.filter(c => c.name.toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 && (
+                  <div className="px-3 py-2 text-sm text-slate-400 italic">
+                    No members found
+                  </div>
+               )}
+             </div>
+           </div>
+        )}
+
         <form 
           onSubmit={handleSendMessage}
           className="flex gap-2 items-center"
         >
           <input
+            ref={inputRef}
             type="text"
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange}
+            onClick={(e) => {
+                 const cursor = (e.target as HTMLInputElement).selectionStart || 0;
+                 setCursorPosition(cursor);
+            }}
+            onKeyUp={(e) => {
+                 const cursor = (e.target as HTMLInputElement).selectionStart || 0;
+                 setCursorPosition(cursor);
+            }}
             placeholder={t('chat.inputPlaceholder')}
             className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 border-0 rounded-full focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
           />

@@ -71,8 +71,12 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
                className={cn("w-10 h-10 rounded-full object-cover border-2", (message.sender as Character).color)}
              />
            ) : (
-             <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-               <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Me</span>
+             <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center border-2 border-emerald-500 overflow-hidden">
+                <img 
+                   src="https://api.dicebear.com/7.x/avataaars/svg?seed=Host&backgroundColor=b6e3f4" 
+                   alt="Host"
+                   className="w-full h-full object-cover"
+                />
              </div>
            )}
         </div>

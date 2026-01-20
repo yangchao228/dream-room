@@ -100,5 +100,51 @@ export const storage = {
     } catch (e) {
       console.error('Failed to save messages to storage', e);
     }
+  },
+
+  // Export/Import
+  exportData: (): string => {
+    const data: Record<string, string | null> = {};
+    
+    // Core data
+    data[TEAMS_KEY] = localStorage.getItem(TEAMS_KEY);
+    data[CUSTOM_CHARACTERS_KEY] = localStorage.getItem(CUSTOM_CHARACTERS_KEY);
+    
+    // Messages for each team
+    try {
+        const teamsStr = localStorage.getItem(TEAMS_KEY);
+        if (teamsStr) {
+            const teams: Team[] = JSON.parse(teamsStr);
+            teams.forEach(team => {
+                const msgKey = `${MESSAGES_KEY_PREFIX}${team.id}`;
+                data[msgKey] = localStorage.getItem(msgKey);
+            });
+        }
+    } catch (e) {
+        console.error('Error collecting messages for export', e);
+    }
+    
+    return JSON.stringify(data);
+  },
+
+  importData: (jsonData: string): boolean => {
+    try {
+        const data = JSON.parse(jsonData);
+        
+        // Basic validation
+        if (!data || typeof data !== 'object') return false;
+        
+        // Restore all keys
+        Object.keys(data).forEach(key => {
+            if (data[key] !== null && typeof data[key] === 'string') {
+                localStorage.setItem(key, data[key]);
+            }
+        });
+        
+        return true;
+    } catch (e) {
+        console.error('Import failed', e);
+        return false;
+    }
   }
 };

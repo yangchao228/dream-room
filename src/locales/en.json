@@ -15,7 +15,12 @@
     "members": "Members",
     "topic": "Topic",
     "manageCharacters": "My Characters",
-    "deleteTeamConfirm": "Are you sure you want to delete this team?"
+    "deleteTeamConfirm": "Are you sure you want to delete this team?",
+    "exportData": "Export Data",
+    "importData": "Import Data",
+    "exportSuccess": "Data exported successfully!",
+    "importSuccess": "Data imported successfully! Page will reload.",
+    "importError": "Failed to import data. Invalid file."
   },
   "create": {
     "title": "Assemble Your Team",
@@ -93,9 +98,6 @@
     "hostName": "Host",
     "hostIntro": "Hello everyone, I am your host. We are honored to have you here. Today's topic is: \"{{topic}}\". I look forward to your insights!",
     "opinionIntro": "Today's roundtable topic is: {{topic}}. Four characters will discuss this from completely different standpoints.",
-    "opinionStatementsIntro": "Finally, I'd like each guest to summarize their position in one sentence.",
-    "opinionSummaryPlaceholder": "Discussion concluded. Based on your views, we see different dimensions...",
-    "hostRoundRobinStart": "Let's start by hearing from each of you. Please briefly state your position.",
     "back": "Back to Home",
     "thinking": "Thinking...",
     "autoScrollOn": "Auto-scroll: On",

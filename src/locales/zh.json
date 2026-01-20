@@ -15,7 +15,12 @@
     "members": "成员",
     "topic": "话题",
     "manageCharacters": "我的角色",
-    "deleteTeamConfirm": "确定要删除这个聊天组吗？"
+    "deleteTeamConfirm": "确定要删除这个聊天组吗？",
+    "exportData": "导出数据",
+    "importData": "导入数据",
+    "exportSuccess": "数据导出成功！",
+    "importSuccess": "数据导入成功！页面即将刷新。",
+    "importError": "导入失败。文件格式无效。"
   },
   "create": {
     "title": "组建你的团队",
@@ -93,9 +98,6 @@
     "hostName": "主持人",
     "hostIntro": "大家好，我是本次圆桌会议的主持人。今天我们非常荣幸邀请到了各位嘉宾。我们要探讨的话题是：“{{topic}}”。期待大家的精彩发言！",
     "opinionIntro": "今天的圆桌问题是：{{topic}}。四位角色将从完全不同的立场展开讨论。",
-    "opinionStatementsIntro": "最后，请每位嘉宾用一句话总结自己的立场。",
-    "opinionSummaryPlaceholder": "讨论结束。基于各位的观点，我们看到了不同的维度...",
-    "hostRoundRobinStart": "让我们先听听每位嘉宾的看法。请简要陈述您的立场。",
     "back": "返回首页",
     "thinking": "思考中...",
     "autoScrollOn": "自动滚动：开",
